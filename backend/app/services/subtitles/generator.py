@@ -128,22 +128,28 @@ class SubtitleGenerator:
         rel_duration = max(1.0, clip_end - clip_start)
         rel_duration_str = cls._format_timestamp(rel_duration)
 
-        # 3-4 words per phrase for natural, human reading speed (not flickering)
-        phrase_word_limit = 4
-        phrase_char_limit = 22
+        # 1-2 words per phrase for punchy, modern reel pacing (locked on 1 single line, zero jumping)
+        phrase_word_limit = 2
+        phrase_char_limit = 14
 
         phrases: List[List[Dict[str, Any]]] = []
         current_phrase: List[Dict[str, Any]] = []
         current_chars = 0
 
         for word_obj in clip_words:
-            current_phrase.append(word_obj)
             word_text = word_obj["word"]
-            current_chars += len(word_text) + 1
-            if (len(current_phrase) >= phrase_word_limit or current_chars >= phrase_char_limit or word_text.endswith((".", "!", "?", "...", "-"))):
+            # Start a new phrase if limits reached or previous word ended with punctuation
+            if current_phrase and (
+                len(current_phrase) >= phrase_word_limit
+                or (current_chars + len(word_text)) > phrase_char_limit
+                or current_phrase[-1]["word"].endswith((".", "!", "?", "...", "-", ":"))
+            ):
                 phrases.append(current_phrase)
                 current_phrase = []
                 current_chars = 0
+
+            current_phrase.append(word_obj)
+            current_chars += len(word_text) + 1
 
         if current_phrase:
             phrases.append(current_phrase)
@@ -152,7 +158,7 @@ class SubtitleGenerator:
         header = """[Script Info]
 Title: ClipForge Viral Subtitles
 ScriptType: v4.00+
-WrapStyle: 0
+WrapStyle: 2
 ScaledBorderAndShadow: yes
 PlayResX: 1080
 PlayResY: 1920
@@ -161,25 +167,25 @@ PlayResY: 1920
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 """
         # Top Headline Banner Style (Alignment 8 = Top Center, MarginV=140)
-        top_header_style = "Style: Header,Segoe UI Black,50,&H00D7FF&,&H000000&,&H000000&,&HA0000000&,1,0,0,0,100,100,1,0,1,6,3,8,80,80,140,1\n"
+        top_header_style = "Style: Header,Segoe UI Black,48,&H00D7FF&,&H000000&,&H000000&,&HA0000000,1,0,0,0,100,100,1,0,1,6,3,8,80,80,140,1\n"
 
         if style_name == "clean_minimal":
-            styles = "Style: Default,Segoe UI,62,&HFFFFFF&,&H000000&,&H000000&,&H80000000&,1,0,0,0,100,100,0,0,3,10,0,2,80,80,420,1\n"
+            styles = "Style: Default,Segoe UI,58,&HFFFFFF&,&H000000&,&H000000&,&H80000000,1,0,0,0,100,100,0,0,3,8,0,2,60,60,440,1\n"
             base_active_color = "\\c&H00FFFF&"
             normal_color = "\\c&HFFFFFF&"
         elif style_name == "hormozi_hyper":
             # Hormozi Style: Big All-Caps, Neon Lime Green highlight, thick border
-            styles = "Style: Default,Segoe UI Black,78,&HFFFFFF&,&H000000&,&H000000&,&HC0000000&,1,0,0,0,100,100,2,0,1,9,4,2,80,80,450,1\n"
+            styles = "Style: Default,Segoe UI Black,68,&HFFFFFF&,&H000000&,&H000000&,&HC0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
             base_active_color = "\\c&H00FF55&"
             normal_color = "\\c&HFFFFFF&"
         elif style_name == "neon_cyber":
             # Neon Cyber: Electric Cyan highlight, Magenta outline
-            styles = "Style: Default,Segoe UI Black,74,&H00FFFF&,&H000000&,&H990099&,&HB0000000&,1,0,0,0,100,100,1,0,1,8,4,2,80,80,450,1\n"
+            styles = "Style: Default,Segoe UI Black,68,&H00FFFF&,&H000000&,&H990099&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
             base_active_color = "\\c&HFFFF00&"
             normal_color = "\\c&H00FFFF&"
         else: # bold_viral (default)
-            # Bold Viral: vibrant yellow highlight, thick dark outline, high-impact bouncy pop
-            styles = "Style: Default,Segoe UI Black,76,&HFFFFFF&,&H000000&,&H000000&,&HB0000000&,1,0,0,0,100,100,1,0,1,9,4,2,80,80,450,1\n"
+            # Bold Viral: vibrant yellow highlight, thick dark outline, rock-solid baseline
+            styles = "Style: Default,Segoe UI Black,68,&HFFFFFF&,&H000000&,&H000000&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
             base_active_color = "\\c&H00D7FF&"
             normal_color = "\\c&HFFFFFF&"
 
@@ -194,7 +200,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}{{\\fnSegoe UI Emoji}}🔥{{\\fn}} {clean_head} {{\\fnSegoe UI Emoji}}🔥{{\\fn}}"
             )
 
-        # 2. Generate smooth, perfectly synced karaoke word-highlight events (No vibrating strobe)
+        # 2. Generate smooth, perfectly synced karaoke word-highlight events (Rock-solid baseline, zero up/down jumping)
         for phrase in phrases:
             for i, target_word in enumerate(phrase):
                 sub_start = target_word["start"]
@@ -208,14 +214,13 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 text_parts = []
                 for j, w in enumerate(phrase):
                     raw_w = w["word"]
-                    w_with_emoji = cls._inject_emoji(raw_w)
-                    display_word = w_with_emoji.upper() if style_name != "clean_minimal" else w_with_emoji
+                    display_word = raw_w.upper() if style_name != "clean_minimal" else raw_w
 
                     if i == j:
-                        # Smooth vivid Neon highlight without aggressive jarring spring scale
+                        # Smooth vivid Neon highlight - identical baseline, NO vertical scaling distortion
                         active_color = cls._get_highlight_color(raw_w, base_active_color)
                         text_parts.append(
-                            f"{{{active_color}\\fscx106\\fscy106}}{display_word}{{{normal_color}\\fscx100\\fscy100}}"
+                            f"{{{active_color}}}{display_word}{{{normal_color}}}"
                         )
                     else:
                         text_parts.append(f"{{{normal_color}}}{display_word}")
