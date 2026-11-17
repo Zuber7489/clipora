@@ -336,26 +336,33 @@ export class ProcessingComponent implements OnInit, OnDestroy {
     this.api.getProject(this.projectId).subscribe({
       next: (proj) => {
         this.project.set(proj);
-        if (proj.status === 'completed') {
+        if (proj.status === 'completed' || proj.clips_count >= 5) {
           this.progress.set(100);
-          this.currentStep.set('All 5 vertical clips rendered!');
+          this.currentStep.set('All 5 vertical clips rendered successfully!');
           clearInterval(this.pollInterval);
           setTimeout(() => {
             this.router.navigate(['/projects', this.projectId]);
-          }, 1200);
+          }, 800);
         } else if (proj.status === 'failed') {
           clearInterval(this.pollInterval);
           this.errorMessage.set(proj.error_message || 'Video processing failed.');
         } else {
-          // Increment progress visually between stages
-          const cur = this.progress();
-          if (cur < 90) {
-            this.progress.set(cur + 4);
+          // Dynamic progress based on real backend state & clip count
+          const rendered = proj.clips_count || 0;
+          if (rendered > 0) {
+            const calculatedProgress = Math.min(98, 75 + (rendered * 4.5));
+            this.progress.set(Math.round(calculatedProgress));
+            this.currentStep.set(`Rendering vertical clip ${Math.min(5, rendered + 1)} of 5 with karaoke subtitles...`);
+          } else {
+            const cur = this.progress();
+            if (cur < 75) {
+              this.progress.set(cur + 3);
+            }
+            if (this.progress() < 25) this.currentStep.set('Extracting audio & probing duration...');
+            else if (this.progress() < 50) this.currentStep.set('Gemini speech transcription & word timestamps...');
+            else if (this.progress() < 75) this.currentStep.set('Gemini multimodal moment analysis & hook detection...');
+            else this.currentStep.set('FFmpeg 9:16 vertical reframing & subtitle burning (Clip 1 of 5)...');
           }
-          if (this.progress() < 30) this.currentStep.set('Extracting audio & probing duration...');
-          else if (this.progress() < 55) this.currentStep.set('Gemini speech transcription & word timestamps...');
-          else if (this.progress() < 75) this.currentStep.set('Gemini multimodal moment analysis & hook detection...');
-          else this.currentStep.set('FFmpeg 9:16 vertical reframing & subtitle burning...');
         }
       },
       error: (err) => {
