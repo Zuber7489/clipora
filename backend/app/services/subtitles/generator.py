@@ -9,6 +9,7 @@ class SubtitleGenerator:
     Features:
     - 2-3 word rapid punchy eye-locking phrases
     - Elastic bouncy spring pop animation on active spoken words
+    - Tri-Color dynamic emotional highlighting (Hormozi style: Green for Money/Wins, Red for Roasts/Shocks, Yellow for Core)
     - Contextual auto-emoji injection
     - Top hook headline banner card
     - Full support for Hindi, Hinglish, and English unicode typography
@@ -25,6 +26,18 @@ class SubtitleGenerator:
         "love": "❤️", "dil": "❤️", "dost": "🤝", "fight": "🥊"
     }
 
+    GREEN_TRIGGERS = {
+        'paisa', 'money', 'crore', 'lakh', 'cash', 'rich', 'win', 'best', 'top',
+        'profit', 'success', 'super', 'deal', 'million', 'billion', '100', 'sahi',
+        'king', 'great', 'bada', 'growth', 'kamyab', 'hit'
+    }
+
+    RED_TRIGGERS = {
+        'roast', 'dead', 'khatam', 'destroy', 'galti', 'danger', 'hate', 'stop',
+        'fail', 'mar', 'khatra', 'shock', 'warning', 'bad', 'loss', 'rip',
+        'pagal', 'worst', 'lose', 'no', 'never', 'galat', 'dhoka', 'chup'
+    }
+
     @classmethod
     def _inject_emoji(cls, word: str) -> str:
         clean = re.sub(r'[^a-zA-Z0-9\u0900-\u097F]', '', word).lower()
@@ -34,6 +47,15 @@ class SubtitleGenerator:
             if len(key) >= 4 and key in clean:
                 return f"{word} {emoji}"
         return word
+
+    @classmethod
+    def _get_highlight_color(cls, word: str, default_color: str) -> str:
+        clean = re.sub(r'[^a-zA-Z0-9\u0900-\u097F]', '', word).lower()
+        if clean in cls.GREEN_TRIGGERS or any(t in clean for t in cls.GREEN_TRIGGERS if len(t) >= 4):
+            return "\\c&H00FF55&"  # Vibrant Neon Lime Green
+        if clean in cls.RED_TRIGGERS or any(t in clean for t in cls.RED_TRIGGERS if len(t) >= 4):
+            return "\\c&H3333FF&"  # Electric Coral / Fire Red
+        return default_color
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
@@ -57,7 +79,7 @@ class SubtitleGenerator:
         headline_hook: Optional[str] = None
     ) -> Path:
         """
-        Generates high-retention .ass subtitle file with elastic bounce animations and optional top hook banner.
+        Generates high-retention .ass subtitle file with tri-color elastic bounce animations and top hook banner.
         """
         # Filter words within the clip range
         clip_words = []
@@ -111,22 +133,22 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 
         if style_name == "clean_minimal":
             styles = "Style: Default,Segoe UI,62,&HFFFFFF&,&H000000&,&H000000&,&H80000000&,1,0,0,0,100,100,0,0,3,10,0,2,80,80,420,1\n"
-            active_color = "\\c&H00FFFF&"
+            base_active_color = "\\c&H00FFFF&"
             normal_color = "\\c&HFFFFFF&"
         elif style_name == "hormozi_hyper":
             # Hormozi Style: Big All-Caps, Neon Lime Green highlight, thick border
             styles = "Style: Default,Segoe UI Black,78,&HFFFFFF&,&H000000&,&H000000&,&HC0000000&,1,0,0,0,100,100,2,0,1,9,4,2,80,80,450,1\n"
-            active_color = "\\c&H00FF55&"
+            base_active_color = "\\c&H00FF55&"
             normal_color = "\\c&HFFFFFF&"
         elif style_name == "neon_cyber":
             # Neon Cyber: Electric Cyan highlight, Magenta outline
             styles = "Style: Default,Segoe UI Black,74,&H00FFFF&,&H000000&,&H990099&,&HB0000000&,1,0,0,0,100,100,1,0,1,8,4,2,80,80,450,1\n"
-            active_color = "\\c&HFFFF00&"
+            base_active_color = "\\c&HFFFF00&"
             normal_color = "\\c&H00FFFF&"
         else: # bold_viral (default)
             # Bold Viral: vibrant yellow highlight, thick dark outline, high-impact bouncy pop
             styles = "Style: Default,Segoe UI Black,76,&HFFFFFF&,&H000000&,&H000000&,&HB0000000&,1,0,0,0,100,100,1,0,1,9,4,2,80,80,450,1\n"
-            active_color = "\\c&H00D7FF&"
+            base_active_color = "\\c&H00D7FF&"
             normal_color = "\\c&HFFFFFF&"
 
         dialogue_lines: List[str] = []
@@ -140,7 +162,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}🔥 {clean_head} 🔥"
             )
 
-        # 2. Generate active karaoke word-pop dialogue events
+        # 2. Generate active karaoke word-pop dialogue events with Tri-Color Highlighting
         for phrase in phrases:
             for i, target_word in enumerate(phrase):
                 sub_start = target_word["start"]
@@ -149,11 +171,12 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 text_parts = []
                 for j, w in enumerate(phrase):
                     raw_w = w["word"]
-                    # Add emoji if keyword
                     w_with_emoji = cls._inject_emoji(raw_w)
                     display_word = w_with_emoji.upper() if style_name != "clean_minimal" else w_with_emoji
 
                     if i == j:
+                        # Dynamic Tri-Color Highlight (Green/Red/Yellow based on emotional context)
+                        active_color = cls._get_highlight_color(raw_w, base_active_color)
                         # Elastic bouncy zoom pop (120% snap)
                         text_parts.append(
                             f"{{{active_color}\\t(0,70,\\fscx120\\fscy120)\\t(70,160,\\fscx100\\fscy100)}}{display_word}{{{normal_color}\\fscx100\\fscy100}}"

@@ -1,11 +1,37 @@
 import os
 import shutil
 import subprocess
+import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 from backend.app.core.config import settings
 from backend.app.services.video.probe import FFprobeService, MediaProbeError
 from backend.app.services.video.reframer import FaceReframer
+
+logger = logging.getLogger(__name__)
+
+def _detect_hw_encoder() -> str:
+    """Auto-detect fastest available hardware encoder. Tries h264_mf (Intel/Windows) first."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return "libx264"
+    try:
+        # Quick test: encode 1 frame with h264_mf
+        result = subprocess.run(
+            [ffmpeg, "-y", "-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
+             "-c:v", "h264_mf", "-b:v", "1M", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=8
+        )
+        if result.returncode == 0:
+            logger.info("✅ h264_mf hardware encoder detected — using Intel/Windows GPU")
+            return "h264_mf"
+    except Exception:
+        pass
+    logger.info("⚡ Using libx264 veryfast software encoder")
+    return "libx264"
+
+# Detect encoder once at module load
+_HW_ENCODER = _detect_hw_encoder()
 
 class VideoProcessingError(Exception):
     pass

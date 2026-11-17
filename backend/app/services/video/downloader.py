@@ -131,8 +131,11 @@ class VideoUrlDownloader:
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
             'writesubtitles': False,
+            'writeautomaticsub': False,
+            'subtitleslangs': [],
             'quiet': True,
             'no_warnings': True,
+            'noprogress': True,
             'max_filesize': settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
         }
 
@@ -155,7 +158,8 @@ class VideoUrlDownloader:
         except Exception as e:
             raise UrlDownloadError(f"Failed to download video from URL: {e}")
 
-        # Optional Subtitle Ingestion: Attempt to fetch real captions without failing on 429
+        # Optional Subtitle Ingestion — completely isolated, never crashes main pipeline
+        subtitle_path_result = None
         try:
             sub_opts = {
                 'skip_download': True,
@@ -165,10 +169,15 @@ class VideoUrlDownloader:
                 'outtmpl': str(project_dir / "%(id)s.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
+                'noprogress': True,
                 'ignoreerrors': True,
+                'socket_timeout': 10,
             }
             with yt_dlp.YoutubeDL(sub_opts) as ydl_sub:
-                ydl_sub.download([url])
+                try:
+                    ydl_sub.download([url])
+                except Exception:
+                    pass  # 429, network error — silently skip
         except Exception as sub_err:
             logger.warning(f"Optional subtitle download skipped: {sub_err}")
 
