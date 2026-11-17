@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from sqlalchemy import String, Float, Integer, Text, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.core.database import Base
@@ -108,17 +108,26 @@ class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
     
     job_type: Mapped[str] = mapped_column(String(50), default="full_pipeline") # 'full_pipeline', 'render_clip', 'analyze'
     progress_percentage: Mapped[int] = mapped_column(Integer, default=0)
     current_step: Mapped[str] = mapped_column(String(100), default="queued")
-    status: Mapped[str] = mapped_column(String(50), default="queued") # 'queued', 'running', 'completed', 'failed'
+    status: Mapped[str] = mapped_column(String(50), default="queued") # 'queued', 'processing', 'completed', 'failed'
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    # Task Queue Payload & Leases
+    payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    locked_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_retries: Mapped[int] = mapped_column(Integer, default=3)
+
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    project: Mapped["Project"] = relationship("Project", back_populates="jobs")
+    project: Mapped[Optional["Project"]] = relationship("Project", back_populates="jobs")

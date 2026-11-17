@@ -45,7 +45,6 @@ def _detect_hw_encoder() -> str:
     logger.info("⚡ Using libx264 superfast software encoder")
     return "libx264"
 
-# Detect encoder once at module load
 _HW_ENCODER = _detect_hw_encoder()
 
 class VideoProcessingError(Exception):
@@ -103,7 +102,6 @@ class VideoProcessor:
             subprocess.run(cmd, capture_output=True, text=True, check=True)
             return output_image_path
         except subprocess.CalledProcessError:
-            # Fallback to start of video
             cmd[2] = "0.0"
             subprocess.run(cmd, capture_output=True, text=True)
             return output_image_path
@@ -116,11 +114,12 @@ class VideoProcessor:
         end_time: float,
         output_video_path: Path,
         subtitle_ass_path: Optional[Path] = None,
-        crop_mode: str = "smart_blur" # "smart_blur", "face_tracking", or "center_crop"
+        crop_mode: str = "smart_blur"
     ) -> Dict[str, Any]:
         """
         Renders a 1080x1920 9:16 vertical video clip with accurate cut,
         smart vertical reframing, burned styled subtitles, and loudness normalization.
+        Supports crop_mode: "split_stacked", "face_tracking", "smart_blur", "center_crop".
         """
         ffmpeg = cls.get_ffmpeg_path()
         output_video_path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,12 +137,42 @@ class VideoProcessor:
                 clean_sub_path = f"{drive}\\:{rest}"
             sub_filter = f",subtitles='{clean_sub_path}'"
 
-        # Determine filter complex or video filter
         use_filter_complex = False
+        color_grade = "eq=contrast=1.06:brightness=0.01:saturation=1.12"
+
+        # Split Stacked Podcast Layout (1080x960 top, 1080x960 bottom, 4px divider)
+        if crop_mode == "split_stacked":
+            use_filter_complex = True
+            try:
+                meta = FFprobeService.probe_file(source_video)
+                src_w, src_h = meta["width"], meta["height"]
+                spk_a_x, spk_b_x = FaceReframer.calculate_multi_speaker_crop_x(
+                    video_path=source_video,
+                    start_time=start_time,
+                    end_time=end_time,
+                    src_width=src_w,
+                    src_height=src_h
+                )
+                target_aspect = 1080.0 / 960.0
+                pane_crop_w = int(src_h * target_aspect)
+                pane_crop_w = min(pane_crop_w, src_w)
+
+                crop_x1 = int(max(0, min(src_w - pane_crop_w, spk_a_x - pane_crop_w / 2.0)))
+                crop_x2 = int(max(0, min(src_w - pane_crop_w, spk_b_x - pane_crop_w / 2.0)))
+
+                vf = (
+                    f"[0:v]split=2[spk1][spk2];"
+                    f"[spk1]crop={pane_crop_w}:{src_h}:{crop_x1}:0,scale=1080:960:flags=lanczos[top];"
+                    f"[spk2]crop={pane_crop_w}:{src_h}:{crop_x2}:0,scale=1080:960:flags=lanczos[bottom];"
+                    f"[top][bottom]vstack=inputs=2[stacked];"
+                    f"[stacked]drawbox=y=958:h=4:color=0x222222@1.0:t=fill,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
+                )
+            except Exception as e:
+                logger.warning(f"split_stacked rendering failed: {e}. Falling back to smart_blur.")
+                crop_mode = "smart_blur"
 
         if crop_mode == "face_tracking":
             try:
-                # Probe original dimensions
                 meta = FFprobeService.probe_file(source_video)
                 src_w = meta["width"]
                 src_h = meta["height"]
@@ -155,19 +184,16 @@ class VideoProcessor:
                     src_height=src_h
                 )
                 crop_w = int(src_h * (9.0 / 16.0))
-                crop_x = int(max(0, speaker_x - (crop_w / 2.0)))
-                vf = f"crop={crop_w}:{src_h}:{crop_x}:0,scale=1080:1920,fps={settings.OUTPUT_FPS}{sub_filter}"
-            except Exception:
+                crop_x = int(max(0, min(src_w - crop_w, speaker_x - (crop_w / 2.0))))
+                vf = f"crop={crop_w}:{src_h}:{crop_x}:0,scale=1080:1920,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}"
+            except Exception as e:
+                logger.warning(f"face_tracking rendering failed: {e}. Falling back to smart_blur.")
                 crop_mode = "smart_blur"
-
-        # Color grade filter — cinematic punch (contrast + saturation boost)
-        color_grade = "eq=contrast=1.06:brightness=0.01:saturation=1.12"
 
         if crop_mode == "center_crop":
             vf = f"scale=-2:1920,crop=1080:1920:(in_w-1080)/2:0,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}"
         elif crop_mode == "smart_blur":
             use_filter_complex = True
-            # Super-fast background bokeh (downscale-blur-upscale) + vibrant foreground
             vf = (
                 f"[0:v]split=2[bg][fg];"
                 f"[bg]scale=54:96:force_original_aspect_ratio=increase,crop=54:96,boxblur=2:1,scale=1080:1920:flags=bilinear,eq=contrast=0.9:brightness=-0.08:saturation=1.2[bg_blurred];"
@@ -188,14 +214,12 @@ class VideoProcessor:
         else:
             cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
 
-        # 🎙️ Vocal punch audio: dynaudnorm (ultra-fast dynamic normalization) + presence boost
         audio_filter = (
             "dynaudnorm=p=0.9:m=10.0:s=5,"
             "equalizer=f=3200:t=o:w=1:g=2.5,"
             "volume=1.06"
         )
 
-        # 🚀 Hardware encoder selection
         if _HW_ENCODER == "h264_qsv":
             enc_args = ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "23"]
         elif _HW_ENCODER == "h264_mf":
@@ -218,7 +242,6 @@ class VideoProcessor:
             subprocess.run(cmd, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as e:
             logger.warning(f"Primary render failed, trying superfast libx264 fallback: {e.stderr[-300:]}")
-            # Fallback: simple scale + libx264, no color grade
             cmd_fallback = [
                 ffmpeg, "-y",
                 "-ss", f"{start_time:.3f}",

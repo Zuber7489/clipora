@@ -1,19 +1,20 @@
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from backend.app.services.subtitles.transliterate import devanagari_to_hinglish
+from backend.app.services.subtitles.presets import (
+    get_preset,
+    resolve_preset_name,
+    SubtitlePreset,
+    PRESETS
+)
 
 class SubtitleGenerator:
     """
     Generates ultra-engaging, viral-retention Advanced SubStation Alpha (.ass) subtitles.
-    Features:
-    - 2-3 word rapid punchy eye-locking phrases
-    - Elastic bouncy spring pop animation on active spoken words
-    - Tri-Color dynamic emotional highlighting (Hormozi style: Green for Money/Wins, Red for Roasts/Shocks, Yellow for Core)
-    - Contextual auto-emoji injection
-    - Top hook headline banner card
-    - Full support for Hindi, Hinglish, and English unicode typography
+    Supports Alex Hormozi (highlight box), MrBeast (bouncy pop), Ali Abdaal (clean minimal),
+    and Neon Cyber styles, word-level highlight/animations, emoji injection, and custom user-edited transcript payloads.
     """
 
     EMOJI_MAP = {
@@ -48,7 +49,6 @@ class SubtitleGenerator:
     @classmethod
     def _inject_emoji(cls, word: str) -> str:
         clean = re.sub(r'[^a-zA-Z0-9\u0900-\u097F]', '', word).lower()
-        # Direct lookup or substring match
         matched_emoji = cls.EMOJI_MAP.get(clean)
         if not matched_emoji:
             for key, emoji in cls.EMOJI_MAP.items():
@@ -56,7 +56,6 @@ class SubtitleGenerator:
                     matched_emoji = emoji
                     break
         if matched_emoji:
-            # Wrap emoji with font switch to Segoe UI Emoji for razor-sharp rendering
             return f"{word} {{\\fnSegoe UI Emoji}}{matched_emoji}{{\\fn}}"
         return word
 
@@ -71,7 +70,6 @@ class SubtitleGenerator:
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
-        """Converts float seconds to ASS timestamp format: H:MM:SS.cc"""
         hrs = int(seconds // 3600)
         mins = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
@@ -84,18 +82,27 @@ class SubtitleGenerator:
     def generate_ass(
         cls,
         words: List[Dict[str, Any]],
-        output_path: Path,
+        output_path: Union[Path, str],
         style_name: str = "bold_viral",
         clip_start: float = 0.0,
         clip_end: float = 60.0,
-        headline_hook: Optional[str] = None
+        headline_hook: Optional[str] = None,
+        video_width: int = 1080,
+        video_height: int = 1920
     ) -> Path:
         """
-        Generates high-retention .ass subtitle file with tri-color elastic bounce animations and top hook banner.
+        Generates high-retention .ass subtitle file with preset styling and smooth animations.
         """
-        # Filter and normalize words within the clip range
+        out_file = Path(output_path)
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+
+        preset: SubtitlePreset = get_preset(style_name)
+        canonical_style = preset.name
+
+        rel_duration = max(1.0, clip_end - clip_start)
+        rel_duration_str = cls._format_timestamp(rel_duration)
+
         clip_words = []
-        # Check if timestamps are already relative (e.g. 0.0s upwards) vs absolute (around clip_start)
         first_start = float(words[0].get("start", 0.0)) if words else 0.0
         is_already_relative = (first_start < 5.0 and clip_start > 15.0)
 
@@ -109,47 +116,57 @@ class SubtitleGenerator:
 
             if is_already_relative:
                 rel_start = max(0.0, w_start)
-                rel_end = max(rel_start + 0.15, min(clip_end - clip_start, w_end))
+                rel_end = max(rel_start + 0.15, min(rel_duration, w_end))
             else:
                 if w_end <= clip_start or w_start >= clip_end:
                     continue
                 rel_start = max(0.0, w_start - clip_start)
-                rel_end = max(rel_start + 0.15, min(clip_end - clip_start, w_end - clip_start))
+                rel_end = max(rel_start + 0.15, min(rel_duration, w_end - clip_start))
 
-            hinglish_word = devanagari_to_hinglish(raw_word)
+            clean_word = devanagari_to_hinglish(raw_word)
+            clean_word = cls._inject_emoji(clean_word)
+
             clip_words.append({
-                "word": hinglish_word,
+                "word": clean_word,
                 "start": rel_start,
                 "end": rel_end,
                 "speaker": w.get("speaker", "Speaker")
             })
 
-        # Duration of relative clip
-        rel_duration = max(1.0, clip_end - clip_start)
-        rel_duration_str = cls._format_timestamp(rel_duration)
+        if not clip_words:
+            header = f"""[Script Info]
+Title: ClipForge Viral Subtitles
+ScriptType: v4.00+
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+PlayResX: {video_width}
+PlayResY: {video_height}
 
-        # 3-4 words per phrase (natural reading clause, max 20 chars, zero jitter)
-        phrase_word_limit = 4
-        phrase_char_limit = 20
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+{preset.to_ass_style_line("Default")}
 
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+            out_file.write_text(header, encoding="utf-8")
+            return out_file
+
+        # Chunk phrases naturally based on preset specifications
         phrases: List[List[Dict[str, Any]]] = []
         current_phrase: List[Dict[str, Any]] = []
         current_chars = 0
+        max_words = preset.max_words_per_phrase
+        max_chars = preset.max_chars_per_phrase
 
-        for word_obj in clip_words:
+        for idx, word_obj in enumerate(clip_words):
             word_text = word_obj["word"]
-            pause_from_prev = (word_obj["start"] - current_phrase[-1]["end"]) if current_phrase else 0.0
-
-            # Start a new phrase if limits reached, noticeable pause (>0.35s), or terminal punctuation
-            if current_phrase and (
-                len(current_phrase) >= phrase_word_limit
-                or (current_chars + len(word_text)) > phrase_char_limit
-                or pause_from_prev > 0.35
-                or current_phrase[-1]["word"].endswith((".", "!", "?", "...", "-", ":", ","))
-            ):
-                phrases.append(current_phrase)
-                current_phrase = []
-                current_chars = 0
+            if current_phrase:
+                gap = word_obj["start"] - current_phrase[-1]["end"]
+                if gap > 0.40 or len(current_phrase) >= max_words or (current_chars + len(word_text)) > max_chars:
+                    phrases.append(current_phrase)
+                    current_phrase = []
+                    current_chars = 0
 
             current_phrase.append(word_obj)
             current_chars += len(word_text) + 1
@@ -157,41 +174,21 @@ class SubtitleGenerator:
         if current_phrase:
             phrases.append(current_phrase)
 
-        # Style definitions with PrimaryColour (Highlight) and SecondaryColour (Base White)
-        header = """[Script Info]
+        header = f"""[Script Info]
 Title: ClipForge Viral Subtitles
 ScriptType: v4.00+
 WrapStyle: 2
 ScaledBorderAndShadow: yes
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: {video_width}
+PlayResY: {video_height}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Header,Segoe UI Black,48,&H00D7FF&,&H000000&,&H000000&,&HA0000000,1,0,0,0,100,100,1,0,1,6,3,8,80,80,140,1
+{preset.to_ass_style_line("Default")}
 """
-        # Top Headline Banner Style (Alignment 8 = Top Center, MarginV=140)
-        top_header_style = "Style: Header,Segoe UI Black,48,&H00D7FF&,&H000000&,&H000000&,&HA0000000,1,0,0,0,100,100,1,0,1,6,3,8,80,80,140,1\n"
-
-        if style_name == "clean_minimal":
-            # Primary: Golden Yellow, Secondary: Soft White
-            styles = "Style: Default,Segoe UI,56,&H0000D7FF&,&H00E0E0E0&,&H00000000&,&H80000000,1,0,0,0,100,100,0,0,3,6,0,2,60,60,440,1\n"
-            default_active_bgr = "&H0000D7FF&"
-        elif style_name == "hormozi_hyper":
-            # Hormozi Style: Vibrant Neon Lime Green Highlight over Clean White
-            styles = "Style: Default,Segoe UI Black,64,&H0055FF00&,&H00FFFFFF&,&H00000000&,&HC0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
-            default_active_bgr = "&H0055FF00&"
-        elif style_name == "neon_cyber":
-            # Neon Cyber: Vibrant Electric Cyan Highlight over White, Deep Purple Outline
-            styles = "Style: Default,Segoe UI Black,64,&H00FFFF00&,&H00FFFFFF&,&H00990099&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
-            default_active_bgr = "&H00FFFF00&"
-        else: # bold_viral (default)
-            # Bold Viral: Vibrant Golden Yellow Highlight over Clean White, Deep Black Outline
-            styles = "Style: Default,Segoe UI Black,64,&H0000D7FF&,&H00FFFFFF&,&H00000000&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
-            default_active_bgr = "&H0000D7FF&"
-
         dialogue_lines: List[str] = []
 
-        # 1. Top Hook Headline Banner (Shows throughout the clip at top center)
         if headline_hook and headline_hook.strip():
             clean_head = devanagari_to_hinglish(headline_hook.strip()).upper()
             if len(clean_head) > 42:
@@ -200,11 +197,10 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}{{\\fnSegoe UI Emoji}}🔥{{\\fn}} {clean_head} {{\\fnSegoe UI Emoji}}🔥{{\\fn}}"
             )
 
-        # 2. Generate smooth, continuous \\kf karaoke sweep events (1 single Dialogue event per phrase - ZERO jitter)
+        default_active_bgr = preset.primary_color
+
         for idx, phrase in enumerate(phrases):
             line_start = phrase[0]["start"]
-
-            # Cap line end so it smoothly meets next phrase without any flicker or overlap
             if idx + 1 < len(phrases):
                 next_start = phrases[idx + 1][0]["start"]
                 line_end = min(next_start, max(phrase[-1]["end"] + 0.30, line_start + 1.0))
@@ -212,6 +208,8 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 line_end = min(rel_duration, phrase[-1]["end"] + 0.35)
 
             kf_word_parts = []
+            line_start_ms = int(line_start * 1000)
+
             for i, w in enumerate(phrase):
                 w_start = w["start"]
                 if i + 1 < len(phrase):
@@ -221,14 +219,24 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 
                 cs = max(10, int(round(dur * 100)))
                 raw_w = w["word"]
-                display_word = raw_w.upper() if style_name != "clean_minimal" else raw_w
+                display_word = raw_w.upper() if preset.uppercase else raw_w
 
-                # Dynamic emotional color trigger if applicable
                 custom_bgr = cls._get_highlight_bgr(raw_w, default_active_bgr)
-                if custom_bgr != default_active_bgr:
-                    kf_word_parts.append(f"{{\\1c{custom_bgr}\\kf{cs}}}{display_word}")
-                else:
-                    kf_word_parts.append(f"{{\\kf{cs}}}{display_word}")
+                color_tag = f"\\1c{custom_bgr}" if custom_bgr != default_active_bgr else ""
+
+                # MrBeast Bouncy Pop Animation
+                anim_tags = ""
+                if preset.has_bounce:
+                    w_rel_start_ms = max(0, int(w_start * 1000) - line_start_ms)
+                    t_pop_end = w_rel_start_ms + 120
+                    t_settle_end = t_pop_end + 100
+                    anim_tags = f"\\t({w_rel_start_ms},{t_pop_end},\\fscx125\\fscy125)\\t({t_pop_end},{t_settle_end},\\fscx100\\fscy100)"
+
+                # Neon glow
+                glow_tag = f"\\blur{int(preset.blur)}" if preset.has_glow and preset.blur > 0 else ""
+
+                tags = f"{{{anim_tags}{glow_tag}{color_tag}\\kf{cs}}}"
+                kf_word_parts.append(f"{tags}{display_word}")
 
             formatted_text = " ".join(kf_word_parts)
             start_str = cls._format_timestamp(line_start)
@@ -237,11 +245,9 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 
         content = (
             header
-            + top_header_style
-            + styles
             + "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
             + "\n".join(dialogue_lines)
             + "\n"
         )
-        output_path.write_text(content, encoding="utf-8")
-        return output_path
+        out_file.write_text(content, encoding="utf-8")
+        return out_file
