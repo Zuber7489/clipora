@@ -1,0 +1,86 @@
+# ========================================================
+# ClipForge AI - Comprehensive Root .gitignore
+# ========================================================
+
+# --- Python & Virtual Environments ---
+backend/venv/
+venv/
+env/
+ENV/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Pytest & Coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# --- Database & Local State ---
+*.db
+*.sqlite
+*.sqlite3
+clipforge.db
+clipforge.db-journal
+
+# --- Storage & Media Artifacts (Preserve folders via .gitkeep) ---
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/processed/*
+!storage/processed/.gitkeep
+storage/temporary/*
+!storage/temporary/.gitkeep
+
+# Exclude generated video/audio cuts
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.ass
+*.srt
+*.vtt
+
+# --- Environment Secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- Node & Angular ---
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+frontend/tmp/
+frontend/out-tsc/
+frontend/.angular/
+.angular/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.sass-cache/
+
+# --- IDEs & OS Files ---
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
+*.sublime-project
+.DS_Store
+Thumbs.db
+desktop.ini
