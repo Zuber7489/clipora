@@ -158,28 +158,8 @@ class VideoUrlDownloader:
         except Exception as e:
             raise UrlDownloadError(f"Failed to download video from URL: {e}")
 
-        # Optional Subtitle Ingestion — completely isolated, never crashes main pipeline
-        subtitle_path_result = None
-        try:
-            sub_opts = {
-                'skip_download': True,
-                'writesubtitles': True,
-                'writeautomaticsub': True,
-                'subtitleslangs': ['hi-Latn', 'en', 'en-US', 'hi'],
-                'outtmpl': str(project_dir / "%(id)s.%(ext)s"),
-                'quiet': True,
-                'no_warnings': True,
-                'noprogress': True,
-                'ignoreerrors': True,
-                'socket_timeout': 10,
-            }
-            with yt_dlp.YoutubeDL(sub_opts) as ydl_sub:
-                try:
-                    ydl_sub.download([url])
-                except Exception:
-                    pass  # 429, network error — silently skip
-        except Exception as sub_err:
-            logger.warning(f"Optional subtitle download skipped: {sub_err}")
+        # Subtitle transcription is handled directly by Gemini API (Gemini Speech Intelligence)
+        sub_file = None
 
         # Probe the downloaded video
         try:
@@ -194,9 +174,8 @@ class VideoUrlDownloader:
                 f"Video duration ({meta['duration']/60:.1f}m) exceeds the maximum allowed limit of {settings.MAX_VIDEO_DURATION_SECONDS/60:.0f} minutes."
             )
 
-        # Check for extracted subtitles (VTT or SRT)
-        vtt_candidates = list(project_dir.glob("*.vtt")) + list(project_dir.glob("*.srt"))
-        sub_file = vtt_candidates[0] if vtt_candidates else None
+        # Subtitles will be transcribed directly by Gemini API
+        sub_file = None
 
         return {
             "title": title,
