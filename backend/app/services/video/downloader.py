@@ -165,7 +165,7 @@ class VideoUrlDownloader:
                 'skip_download': True,
                 'writesubtitles': True,
                 'writeautomaticsub': True,
-                'subtitleslangs': ['hi', 'en', 'hi-Latn', 'en-US'],
+                'subtitleslangs': ['hi-Latn', 'en', 'en-US', 'hi'],
                 'outtmpl': str(project_dir / "%(id)s.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,

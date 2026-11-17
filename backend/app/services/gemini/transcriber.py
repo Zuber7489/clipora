@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 from backend.app.core.config import settings
 from backend.app.services.gemini.client import GeminiClientWrapper
 from backend.app.services.subtitles.vtt_parser import VttSubtitleParser
+from backend.app.services.subtitles.transliterate import devanagari_to_hinglish
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,11 @@ class GeminiTranscriptionService:
                 try:
                     uploaded_audio = GeminiClientWrapper.upload_and_wait(audio_path, mime_type="audio/wav")
                     prompt = (
-                        "Listen carefully to this audio and provide a complete verbatim transcription in the original language "
-                        "(Hindi/English/Hinglish). Return a JSON object with this exact structure: "
+                        "Listen carefully to this audio and provide a complete verbatim transcription in natural Hinglish "
+                        "(Hindi in English/Latin Roman alphabet, or English). "
+                        "CRITICAL: NEVER use Devanagari script (no हिन्दी अक्षर). All words must be in Latin characters "
+                        "(e.g. 'bhai kya season', 'sam for balraj'). "
+                        "Return a JSON object with this exact structure: "
                         "{\"full_text\": \"...\", \"words\": [{\"word\": \"...\", \"start\": 0.0, \"end\": 0.5, \"speaker\": \"Speaker 1\"}]}"
                     )
                     response = client.models.generate_content(
@@ -64,7 +68,12 @@ class GeminiTranscriptionService:
                     raw_text = response.text or "{}"
                     data = json.loads(raw_text)
                     if isinstance(data, dict) and "words" in data and len(data["words"]) > 0:
-                        logger.info(f"Gemini {model_name} transcribed {len(data['words'])} words from audio.")
+                        # Ensure all words are clean Hinglish
+                        for w in data["words"]:
+                            w["word"] = devanagari_to_hinglish(w.get("word", ""))
+                        if "full_text" in data:
+                            data["full_text"] = devanagari_to_hinglish(data["full_text"])
+                        logger.info(f"Gemini {model_name} transcribed {len(data['words'])} words from audio in Hinglish.")
                         return data
                 except Exception as e:
                     logger.warning(f"Gemini model {model_name} transcription failed: {e}")

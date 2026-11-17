@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from backend.app.core.config import settings
 from backend.app.schemas.clip import GeminiClipAnalysisOutput
 from backend.app.services.gemini.client import GeminiClientWrapper
+from backend.app.services.subtitles.transliterate import devanagari_to_hinglish
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +70,12 @@ Return exact start_time and end_time (in seconds) matching natural punchlines, r
                         c_end = float(item.get("end_time", 0.0))
                         if 0.0 <= c_start < c_end <= duration and (c_end - c_start) >= 10.0:
                             candidates.append({
-                                "title": item.get("title", "Viral Moment"),
+                                "title": devanagari_to_hinglish(item.get("title", "Viral Moment")),
                                 "start_time": round(c_start, 2),
                                 "end_time": round(min(duration, c_end), 2),
                                 "duration": round(c_end - c_start, 2),
-                                "hook": item.get("hook", ""),
-                                "description": item.get("description", ""),
+                                "hook": devanagari_to_hinglish(item.get("hook", "")),
+                                "description": devanagari_to_hinglish(item.get("description", "")),
                                 "category": item.get("category", "comedy"),
                                 "speaker": item.get("speaker", "Speaker"),
                                 "reason": item.get("reason", "High retention hook and punchline"),
@@ -114,7 +115,7 @@ Return exact start_time and end_time (in seconds) matching natural punchlines, r
             end = round(min(duration, start + clip_target_duration), 2)
             
             # Find words in this slice to create authentic title
-            slice_words = [w["word"] for w in words if start <= w.get("start", 0) <= end]
+            slice_words = [devanagari_to_hinglish(w["word"]) for w in words if start <= w.get("start", 0) <= end]
             if slice_words:
                 snippet = " ".join(slice_words[:6])
                 title = snippet.capitalize() + "..."

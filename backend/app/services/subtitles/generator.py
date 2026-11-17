@@ -2,6 +2,7 @@ import os
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from backend.app.services.subtitles.transliterate import devanagari_to_hinglish
 
 class SubtitleGenerator:
     """
@@ -23,29 +24,38 @@ class SubtitleGenerator:
         "kya": "👀", "shock": "🤯", "secret": "🤫", "shh": "🤫", "twist": "⚡",
         "win": "👑", "best": "💯", "top": "🎯", "perfect": "✨", "sahi": "✅",
         "warning": "⚠️", "danger": "🚨", "khatra": "⚠️", "alert": "🚨",
-        "love": "❤️", "dil": "❤️", "dost": "🤝", "fight": "🥊"
+        "love": "❤️", "dil": "❤️", "dost": "🤝", "fight": "🥊",
+        "bhai": "🤝", "bro": "🤝", "season": "🍿", "show": "🎬", "stage": "🎤",
+        "sam": "🎤", "latents": "🎭", "scene": "👀", "comedy": "🤣", "standup": "🎙️",
+        "hero": "🦸", "star": "⭐", "super": "⚡", "real": "💯", "wah": "👏",
+        "arre": "😲", "suno": "👂", "dekh": "👀", "mast": "🔥", "bawaal": "💥", "faad": "🔥"
     }
 
     GREEN_TRIGGERS = {
         'paisa', 'money', 'crore', 'lakh', 'cash', 'rich', 'win', 'best', 'top',
         'profit', 'success', 'super', 'deal', 'million', 'billion', '100', 'sahi',
-        'king', 'great', 'bada', 'growth', 'kamyab', 'hit'
+        'king', 'great', 'bada', 'growth', 'kamyab', 'hit', 'mast', 'star'
     }
 
     RED_TRIGGERS = {
         'roast', 'dead', 'khatam', 'destroy', 'galti', 'danger', 'hate', 'stop',
         'fail', 'mar', 'khatra', 'shock', 'warning', 'bad', 'loss', 'rip',
-        'pagal', 'worst', 'lose', 'no', 'never', 'galat', 'dhoka', 'chup'
+        'pagal', 'worst', 'lose', 'no', 'never', 'galat', 'dhoka', 'chup', 'bawaal'
     }
 
     @classmethod
     def _inject_emoji(cls, word: str) -> str:
         clean = re.sub(r'[^a-zA-Z0-9\u0900-\u097F]', '', word).lower()
-        if clean in cls.EMOJI_MAP:
-            return f"{word} {cls.EMOJI_MAP[clean]}"
-        for key, emoji in cls.EMOJI_MAP.items():
-            if len(key) >= 4 and key in clean:
-                return f"{word} {emoji}"
+        # Direct lookup or substring match
+        matched_emoji = cls.EMOJI_MAP.get(clean)
+        if not matched_emoji:
+            for key, emoji in cls.EMOJI_MAP.items():
+                if len(key) >= 4 and key in clean:
+                    matched_emoji = emoji
+                    break
+        if matched_emoji:
+            # Wrap emoji with font switch to Segoe UI Emoji for razor-sharp rendering
+            return f"{word} {{\\fnSegoe UI Emoji}}{matched_emoji}{{\\fn}}"
         return word
 
     @classmethod
@@ -89,8 +99,10 @@ class SubtitleGenerator:
             if w_end > clip_start and w_start < clip_end:
                 rel_start = max(0.0, w_start - clip_start)
                 rel_end = max(rel_start + 0.1, min(clip_end - clip_start, w_end - clip_start))
+                raw_word = str(w.get("word", "")).strip()
+                hinglish_word = devanagari_to_hinglish(raw_word)
                 clip_words.append({
-                    "word": str(w.get("word", "")).strip(),
+                    "word": hinglish_word,
                     "start": rel_start,
                     "end": rel_end,
                     "speaker": w.get("speaker", "Speaker")
@@ -155,11 +167,11 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 
         # 1. Top Hook Headline Banner (Shows throughout the clip at top center)
         if headline_hook and headline_hook.strip():
-            clean_head = headline_hook.strip().upper()
+            clean_head = devanagari_to_hinglish(headline_hook.strip()).upper()
             if len(clean_head) > 42:
                 clean_head = clean_head[:39] + "..."
             dialogue_lines.append(
-                f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}🔥 {clean_head} 🔥"
+                f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}{{\\fnSegoe UI Emoji}}🔥{{\\fn}} {clean_head} {{\\fnSegoe UI Emoji}}🔥{{\\fn}}"
             )
 
         # 2. Generate active karaoke word-pop dialogue events with Tri-Color Highlighting

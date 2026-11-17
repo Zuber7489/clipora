@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from typing import Dict, Any, List
+from backend.app.services.subtitles.transliterate import devanagari_to_hinglish
 
 class VttSubtitleParser:
     @staticmethod
@@ -67,7 +68,7 @@ class VttSubtitleParser:
                 tokens = re.findall(r'(?:<(\d+:\d+[\d\.:]*)><c>)?\s*([^<]+?)(?:</c>|$)', cleaned_text)
                 curr_t = blk_start
                 for ts_match, word_txt in tokens:
-                    w = word_txt.strip()
+                    w = devanagari_to_hinglish(word_txt.strip())
                     if not w:
                         continue
                     if ts_match:
@@ -87,13 +88,13 @@ class VttSubtitleParser:
                         w_start = blk_start + (i * time_per_word)
                         w_end = w_start + time_per_word
                         words.append({
-                            "word": tok,
+                            "word": devanagari_to_hinglish(tok),
                             "start": round(w_start, 2),
                             "end": round(w_end, 2),
                             "speaker": "Speaker"
                         })
 
         return {
-            "full_text": " ".join(full_text_pieces),
+            "full_text": devanagari_to_hinglish(" ".join(full_text_pieces)),
             "words": words
         }
