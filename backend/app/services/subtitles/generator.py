@@ -61,13 +61,13 @@ class SubtitleGenerator:
         return word
 
     @classmethod
-    def _get_highlight_color(cls, word: str, default_color: str) -> str:
+    def _get_highlight_bgr(cls, word: str, default_bgr: str) -> str:
         clean = re.sub(r'[^a-zA-Z0-9\u0900-\u097F]', '', word).lower()
         if clean in cls.GREEN_TRIGGERS or any(t in clean for t in cls.GREEN_TRIGGERS if len(t) >= 4):
-            return "\\c&H00FF55&"  # Vibrant Neon Lime Green
+            return "&H0055FF00&"  # Vibrant Neon Lime Green
         if clean in cls.RED_TRIGGERS or any(t in clean for t in cls.RED_TRIGGERS if len(t) >= 4):
-            return "\\c&H3333FF&"  # Electric Coral / Fire Red
-        return default_color
+            return "&H003333FF&"  # Coral / Fire Red
+        return default_bgr
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
@@ -128,9 +128,9 @@ class SubtitleGenerator:
         rel_duration = max(1.0, clip_end - clip_start)
         rel_duration_str = cls._format_timestamp(rel_duration)
 
-        # 1-2 words per phrase for punchy, modern reel pacing (locked on 1 single line, zero jumping)
-        phrase_word_limit = 2
-        phrase_char_limit = 14
+        # 3-4 words per phrase (natural reading clause, max 20 chars, zero jitter)
+        phrase_word_limit = 4
+        phrase_char_limit = 20
 
         phrases: List[List[Dict[str, Any]]] = []
         current_phrase: List[Dict[str, Any]] = []
@@ -138,11 +138,14 @@ class SubtitleGenerator:
 
         for word_obj in clip_words:
             word_text = word_obj["word"]
-            # Start a new phrase if limits reached or previous word ended with punctuation
+            pause_from_prev = (word_obj["start"] - current_phrase[-1]["end"]) if current_phrase else 0.0
+
+            # Start a new phrase if limits reached, noticeable pause (>0.35s), or terminal punctuation
             if current_phrase and (
                 len(current_phrase) >= phrase_word_limit
                 or (current_chars + len(word_text)) > phrase_char_limit
-                or current_phrase[-1]["word"].endswith((".", "!", "?", "...", "-", ":"))
+                or pause_from_prev > 0.35
+                or current_phrase[-1]["word"].endswith((".", "!", "?", "...", "-", ":", ","))
             ):
                 phrases.append(current_phrase)
                 current_phrase = []
@@ -154,7 +157,7 @@ class SubtitleGenerator:
         if current_phrase:
             phrases.append(current_phrase)
 
-        # Style definitions (BGR hex colors for ASS: &HBBGGRR&)
+        # Style definitions with PrimaryColour (Highlight) and SecondaryColour (Base White)
         header = """[Script Info]
 Title: ClipForge Viral Subtitles
 ScriptType: v4.00+
@@ -170,24 +173,21 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
         top_header_style = "Style: Header,Segoe UI Black,48,&H00D7FF&,&H000000&,&H000000&,&HA0000000,1,0,0,0,100,100,1,0,1,6,3,8,80,80,140,1\n"
 
         if style_name == "clean_minimal":
-            styles = "Style: Default,Segoe UI,58,&HFFFFFF&,&H000000&,&H000000&,&H80000000,1,0,0,0,100,100,0,0,3,8,0,2,60,60,440,1\n"
-            base_active_color = "\\c&H00FFFF&"
-            normal_color = "\\c&HFFFFFF&"
+            # Primary: Golden Yellow, Secondary: Soft White
+            styles = "Style: Default,Segoe UI,56,&H0000D7FF&,&H00E0E0E0&,&H00000000&,&H80000000,1,0,0,0,100,100,0,0,3,6,0,2,60,60,440,1\n"
+            default_active_bgr = "&H0000D7FF&"
         elif style_name == "hormozi_hyper":
-            # Hormozi Style: Big All-Caps, Neon Lime Green highlight, thick border
-            styles = "Style: Default,Segoe UI Black,68,&HFFFFFF&,&H000000&,&H000000&,&HC0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
-            base_active_color = "\\c&H00FF55&"
-            normal_color = "\\c&HFFFFFF&"
+            # Hormozi Style: Vibrant Neon Lime Green Highlight over Clean White
+            styles = "Style: Default,Segoe UI Black,64,&H0055FF00&,&H00FFFFFF&,&H00000000&,&HC0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
+            default_active_bgr = "&H0055FF00&"
         elif style_name == "neon_cyber":
-            # Neon Cyber: Electric Cyan highlight, Magenta outline
-            styles = "Style: Default,Segoe UI Black,68,&H00FFFF&,&H000000&,&H990099&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
-            base_active_color = "\\c&HFFFF00&"
-            normal_color = "\\c&H00FFFF&"
+            # Neon Cyber: Vibrant Electric Cyan Highlight over White, Deep Purple Outline
+            styles = "Style: Default,Segoe UI Black,64,&H00FFFF00&,&H00FFFFFF&,&H00990099&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
+            default_active_bgr = "&H00FFFF00&"
         else: # bold_viral (default)
-            # Bold Viral: vibrant yellow highlight, thick dark outline, rock-solid baseline
-            styles = "Style: Default,Segoe UI Black,68,&HFFFFFF&,&H000000&,&H000000&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
-            base_active_color = "\\c&H00D7FF&"
-            normal_color = "\\c&HFFFFFF&"
+            # Bold Viral: Vibrant Golden Yellow Highlight over Clean White, Deep Black Outline
+            styles = "Style: Default,Segoe UI Black,64,&H0000D7FF&,&H00FFFFFF&,&H00000000&,&HB0000000,1,0,0,0,100,100,1,0,1,8,3,2,60,60,440,1\n"
+            default_active_bgr = "&H0000D7FF&"
 
         dialogue_lines: List[str] = []
 
@@ -200,35 +200,40 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}{{\\fnSegoe UI Emoji}}🔥{{\\fn}} {clean_head} {{\\fnSegoe UI Emoji}}🔥{{\\fn}}"
             )
 
-        # 2. Generate smooth, perfectly synced karaoke word-highlight events (Rock-solid baseline, zero up/down jumping)
-        for phrase in phrases:
-            for i, target_word in enumerate(phrase):
-                sub_start = target_word["start"]
-                # Seamlessly connect each word to the next so subtitles stay smooth and never flicker
-                if i + 1 < len(phrase):
-                    next_start = phrase[i + 1]["start"]
-                    sub_end = max(sub_start + 0.16, next_start)
-                else:
-                    sub_end = max(sub_start + 0.28, target_word["end"])
-                
-                text_parts = []
-                for j, w in enumerate(phrase):
-                    raw_w = w["word"]
-                    display_word = raw_w.upper() if style_name != "clean_minimal" else raw_w
+        # 2. Generate smooth, continuous \\kf karaoke sweep events (1 single Dialogue event per phrase - ZERO jitter)
+        for idx, phrase in enumerate(phrases):
+            line_start = phrase[0]["start"]
 
-                    if i == j:
-                        # Smooth vivid Neon highlight - identical baseline, NO vertical scaling distortion
-                        active_color = cls._get_highlight_color(raw_w, base_active_color)
-                        text_parts.append(
-                            f"{{{active_color}}}{display_word}{{{normal_color}}}"
-                        )
-                    else:
-                        text_parts.append(f"{{{normal_color}}}{display_word}")
-                
-                formatted_text = " ".join(text_parts)
-                start_str = cls._format_timestamp(sub_start)
-                end_str = cls._format_timestamp(sub_end)
-                dialogue_lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{formatted_text}")
+            # Cap line end so it smoothly meets next phrase without any flicker or overlap
+            if idx + 1 < len(phrases):
+                next_start = phrases[idx + 1][0]["start"]
+                line_end = min(next_start, max(phrase[-1]["end"] + 0.30, line_start + 1.0))
+            else:
+                line_end = min(rel_duration, phrase[-1]["end"] + 0.35)
+
+            kf_word_parts = []
+            for i, w in enumerate(phrase):
+                w_start = w["start"]
+                if i + 1 < len(phrase):
+                    dur = max(0.12, phrase[i + 1]["start"] - w_start)
+                else:
+                    dur = max(0.15, w["end"] - w_start)
+
+                cs = max(10, int(round(dur * 100)))
+                raw_w = w["word"]
+                display_word = raw_w.upper() if style_name != "clean_minimal" else raw_w
+
+                # Dynamic emotional color trigger if applicable
+                custom_bgr = cls._get_highlight_bgr(raw_w, default_active_bgr)
+                if custom_bgr != default_active_bgr:
+                    kf_word_parts.append(f"{{\\1c{custom_bgr}\\kf{cs}}}{display_word}")
+                else:
+                    kf_word_parts.append(f"{{\\kf{cs}}}{display_word}")
+
+            formatted_text = " ".join(kf_word_parts)
+            start_str = cls._format_timestamp(line_start)
+            end_str = cls._format_timestamp(line_end)
+            dialogue_lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{formatted_text}")
 
         content = (
             header
