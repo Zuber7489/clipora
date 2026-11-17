@@ -80,19 +80,19 @@ PlayResY: 1920
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 """
         if style_name == "clean_minimal":
-            # Clean Minimal: crisp white text with subtle dark translucent backing pill
-            styles = "Style: Default,Arial,60,&HFFFFFF&,&H000000&,&H000000&,&H80000000&,1,0,0,0,100,100,0,0,3,10,0,2,80,80,380,1\n"
+            # Clean Minimal: crisp white text with subtle dark translucent backing pill, full Unicode/Hindi support
+            styles = "Style: Default,Segoe UI,62,&HFFFFFF&,&H000000&,&H000000&,&H80000000&,1,0,0,0,100,100,0,0,3,10,0,2,80,80,380,1\n"
             active_color = "\\c&H00FFFF&" # Light cyan highlight
             normal_color = "\\c&HFFFFFF&"
         elif style_name == "podcast_pro":
             # Podcast Professional: modern typography, bold lower-third with speaker distinction
-            styles = "Style: Default,Trebuchet MS,64,&HFFFFFF&,&H000000&,&H151515&,&H90000000&,1,0,0,0,100,100,0,0,1,5,3,2,100,100,420,1\n"
+            styles = "Style: Default,Segoe UI Semibold,66,&HFFFFFF&,&H000000&,&H151515&,&H90000000&,1,0,0,0,100,100,0,0,1,5,3,2,100,100,420,1\n"
             active_color = "\\c&H4AE8A0&" # Mint green
             normal_color = "\\c&HFFFFFF&"
         else: # bold_viral (default)
-            # Bold Viral: vibrant yellow highlight, thick dark outline, high-impact uppercase
-            styles = "Style: Default,Impact,72,&HFFFFFF&,&H000000&,&H000000&,&HA0000000&,1,0,0,0,100,100,1,0,1,7,4,2,80,80,450,1\n"
-            active_color = "\\c&H00FFFF&" # Bright Yellow highlight
+            # Bold Viral: vibrant yellow highlight, thick dark outline, high-impact typography with full Hindi/Unicode support
+            styles = "Style: Default,Segoe UI Black,74,&HFFFFFF&,&H000000&,&H000000&,&HA0000000&,1,0,0,0,100,100,1,0,1,8,4,2,80,80,450,1\n"
+            active_color = "\\c&H00D7FF&" # Vibrant Golden-Yellow highlight
             normal_color = "\\c&HFFFFFF&"
 
         dialogue_lines: List[str] = []

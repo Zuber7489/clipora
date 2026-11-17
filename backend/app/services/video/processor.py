@@ -143,12 +143,12 @@ class VideoProcessor:
         else:
             cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
 
-        # Audio normalization and output encoding
+        # Audio normalization and high-definition video encoding
         cmd.extend([
             "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
             "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "22",
+            "-preset", "faster",
+            "-crf", "20",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "192k",

@@ -11,15 +11,15 @@ logger = logging.getLogger(__name__)
 
 class GeminiVideoAnalyzer:
     SYSTEM_PROMPT = """
-You are an elite short-form video editor and viral content strategist for TikTok, Instagram Reels, and YouTube Shorts.
-Your job is to analyze long podcast media and its transcript, then extract the 5 to 8 most viral, engaging, and high-impact standalone moments.
+You are an elite short-form video editor and viral content strategist for Instagram Reels, YouTube Shorts, and TikTok.
+Your job is to analyze long podcast media, comedy shows, and talk shows (supporting Hindi, Hinglish, and English conversation), then extract the 5 to 8 most viral, hilarious, high-energy, and standalone moments.
 
 Guidelines:
-1. High-retention Hook: The first 3 seconds must begin with a strong, surprising, or controversial statement.
-2. Standalone Coherence: The clip must make complete sense without needing the rest of the 30-minute podcast.
-3. Ideal Duration: Target 30 to 60 seconds (minimum 15s, maximum 90s). Never cut sentences in half.
-4. Emotional & Information Value: Pick deep insights, funny moments, heated debates, or memorable storytelling.
-5. Exact Timestamps: Return precise start_time and end_time (in seconds) matching natural conversation pauses.
+1. High-retention Hook: The first 3 seconds must begin with a strong roast, controversial statement, hilarious punchline, or shocking question.
+2. Standalone Coherence: The moment must make complete sense on its own without needing the rest of the 50-minute episode.
+3. Ideal Duration: Target 30 to 60 seconds (minimum 15s, maximum 90s). Never cut punchlines or laugh reactions in half.
+4. Maximum Engagement: Pick high-energy banter, savage roasts, sudden revelations, funny twists, or profound insights.
+5. Exact Timestamps: Return precise start_time and end_time (in seconds) matching natural conversation pauses and audience/judge reactions.
 """
 
     @classmethod
