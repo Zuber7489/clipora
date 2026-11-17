@@ -130,6 +130,9 @@ class VideoUrlDownloader:
             'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': ['hi', 'en', 'hi-Latn', 'en-US'],
             'quiet': True,
             'no_warnings': True,
             'max_filesize': settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
@@ -145,8 +148,10 @@ class VideoUrlDownloader:
                 target_file = project_dir / f"{video_id}.mp4"
                 if not target_file.exists():
                     candidates = list(project_dir.glob(f"{video_id}.*"))
-                    if candidates:
-                        target_file = candidates[0]
+                    # Filter out subtitle files
+                    media_candidates = [c for c in candidates if c.suffix.lower() not in ['.vtt', '.srt', '.part']]
+                    if media_candidates:
+                        target_file = media_candidates[0]
                     else:
                         raise UrlDownloadError("Video download finished but file was not found on disk.")
 
@@ -166,9 +171,14 @@ class VideoUrlDownloader:
                 f"Video duration ({meta['duration']/60:.1f}m) exceeds the maximum allowed limit of {settings.MAX_VIDEO_DURATION_SECONDS/60:.0f} minutes."
             )
 
+        # Check for extracted subtitles (VTT or SRT)
+        vtt_candidates = list(project_dir.glob("*.vtt")) + list(project_dir.glob("*.srt"))
+        sub_file = vtt_candidates[0] if vtt_candidates else None
+
         return {
             "title": title,
             "file_path": target_file,
             "filename": target_file.name,
-            "metadata": meta
+            "metadata": meta,
+            "subtitle_path": sub_file
         }

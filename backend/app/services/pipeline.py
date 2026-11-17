@@ -59,6 +59,7 @@ class PipelineCoordinator:
 
                     download_data = await asyncio.to_thread(VideoUrlDownloader.download_video, target_url, project.id)
                     video_path = Path(download_data["file_path"])
+                    subtitle_path = download_data.get("subtitle_path")
                     project.file_path = str(video_path)
                     project.original_filename = download_data["filename"]
                     project.file_size_bytes = download_data["metadata"]["size_bytes"]
@@ -69,6 +70,7 @@ class PipelineCoordinator:
                     await db.commit()
                 else:
                     video_path = Path(project.file_path)
+                    subtitle_path = None
 
                 # Step 2: Probe media and extract audio (15%)
                 job.progress_percentage = 15
@@ -94,7 +96,8 @@ class PipelineCoordinator:
                 transcript = await asyncio.to_thread(
                     GeminiTranscriptionService.transcribe_audio,
                     audio_path,
-                    project.duration_seconds
+                    project.duration_seconds,
+                    subtitle_path
                 )
                 project.transcript_data = transcript
                 await db.commit()

@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     PROCESSED_DIR: Path = STORAGE_DIR / "processed"
     TEMPORARY_DIR: Path = STORAGE_DIR / "temporary"
     
-    # Gemini AI
+    # Gemini AI (gemini-3.5-flash-lite for active capacity & < 3s latency)
     GEMINI_API_KEY: str = ""
-    GEMINI_ANALYSIS_MODEL: str = "gemini-3.8-flash"
-    GEMINI_TRANSCRIPTION_MODEL: str = "gemini-3.5-transcribe"
+    GEMINI_ANALYSIS_MODEL: str = "gemini-3.5-flash-lite"
+    GEMINI_TRANSCRIPTION_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_TEMPERATURE: float = 0.3
     
     # Processing Limits & Validation
