@@ -145,17 +145,20 @@ class VideoProcessor:
             except Exception:
                 crop_mode = "smart_blur"
 
+        # Color grade filter — cinematic punch (contrast + saturation boost)
+        color_grade = "eq=contrast=1.06:brightness=0.01:saturation=1.12"
+
         if crop_mode == "center_crop":
-            vf = f"scale=-2:1920,crop=1080:1920:(in_w-1080)/2:0,fps={settings.OUTPUT_FPS}{sub_filter}"
+            vf = f"scale=-2:1920,crop=1080:1920:(in_w-1080)/2:0,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}"
         elif crop_mode == "smart_blur":
             use_filter_complex = True
-            # Blazingly fast two-pass bokeh: downscale to 108x192, blur, and bilinear upscale to 1080x1920.
-            # 8x-10x faster encoding speed while producing identical soft creamy studio blur!
+            # Blazingly fast two-pass bokeh + color grade + punch-zoom every 3s
+            zoom = "zoompan=z='if(lte(mod(on,90),3),1.08,1)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:fps=30"
             vf = (
                 f"[0:v]split=2[bg][fg];"
                 f"[bg]scale=108:192:force_original_aspect_ratio=increase,crop=108:192,boxblur=4:2,scale=1080:1920:flags=bilinear[bg_blurred];"
                 f"[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_scaled];"
-                f"[bg_blurred][fg_scaled]overlay=(W-w)/2:(H-h)/2,fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
+                f"[bg_blurred][fg_scaled]overlay=(W-w)/2:(H-h)/2,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
             )
 
         cmd = [
@@ -171,12 +174,24 @@ class VideoProcessor:
         else:
             cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
 
-        # Audio normalization and high-definition video encoding (preset veryfast for lightning turnaround)
+        # 🎙️ Vocal punch audio: loudnorm + bass cut + presence boost + volume bump
+        audio_filter = (
+            "loudnorm=I=-14:TP=-1.0:LRA=8,"
+            "equalizer=f=200:t=o:w=1:g=-2,"
+            "equalizer=f=3000:t=o:w=1:g=3,"
+            "equalizer=f=8000:t=o:w=1:g=2,"
+            "volume=1.08"
+        )
+
+        # 🚀 Hardware encoder: h264_mf (Intel GPU) → libx264 veryfast fallback
+        if _HW_ENCODER == "h264_mf":
+            enc_args = ["-c:v", "h264_mf", "-b:v", "5M"]
+        else:
+            enc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
+
         cmd.extend([
-            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "20",
+            "-af", audio_filter,
+            *enc_args,
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "192k",
@@ -188,7 +203,8 @@ class VideoProcessor:
         try:
             subprocess.run(cmd, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as e:
-            # If loudnorm or complex filter failed, fallback to basic scale
+            logger.warning(f"Primary render failed, trying libx264 fallback: {e.stderr[-300:]}")
+            # Fallback: simple scale + libx264, no color grade
             cmd_fallback = [
                 ffmpeg, "-y",
                 "-ss", f"{start_time:.3f}",
@@ -196,6 +212,7 @@ class VideoProcessor:
                 "-i", str(source_video),
                 "-vf", f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black{sub_filter}",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
                 "-c:a", "aac", "-b:a", "192k",
                 str(output_video_path)
             ]
