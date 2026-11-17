@@ -128,18 +128,22 @@ class SubtitleGenerator:
         rel_duration = max(1.0, clip_end - clip_start)
         rel_duration_str = cls._format_timestamp(rel_duration)
 
-        # 2-3 words per phrase for max retention
-        phrase_word_limit = 3
+        # 3-4 words per phrase for natural, human reading speed (not flickering)
+        phrase_word_limit = 4
+        phrase_char_limit = 22
 
         phrases: List[List[Dict[str, Any]]] = []
         current_phrase: List[Dict[str, Any]] = []
+        current_chars = 0
 
         for word_obj in clip_words:
             current_phrase.append(word_obj)
             word_text = word_obj["word"]
-            if len(current_phrase) >= phrase_word_limit or word_text.endswith((".", "!", "?", "...", "-")):
+            current_chars += len(word_text) + 1
+            if (len(current_phrase) >= phrase_word_limit or current_chars >= phrase_char_limit or word_text.endswith((".", "!", "?", "...", "-"))):
                 phrases.append(current_phrase)
                 current_phrase = []
+                current_chars = 0
 
         if current_phrase:
             phrases.append(current_phrase)
@@ -190,11 +194,16 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                 f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}{{\\fnSegoe UI Emoji}}🔥{{\\fn}} {clean_head} {{\\fnSegoe UI Emoji}}🔥{{\\fn}}"
             )
 
-        # 2. Generate active karaoke word-pop dialogue events with Tri-Color Highlighting
+        # 2. Generate smooth, perfectly synced karaoke word-highlight events (No vibrating strobe)
         for phrase in phrases:
             for i, target_word in enumerate(phrase):
                 sub_start = target_word["start"]
-                sub_end = target_word["end"]
+                # Seamlessly connect each word to the next so subtitles stay smooth and never flicker
+                if i + 1 < len(phrase):
+                    next_start = phrase[i + 1]["start"]
+                    sub_end = max(sub_start + 0.16, next_start)
+                else:
+                    sub_end = max(sub_start + 0.28, target_word["end"])
                 
                 text_parts = []
                 for j, w in enumerate(phrase):
@@ -203,11 +212,10 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
                     display_word = w_with_emoji.upper() if style_name != "clean_minimal" else w_with_emoji
 
                     if i == j:
-                        # Dynamic Tri-Color Highlight (Green/Red/Yellow based on emotional context)
+                        # Smooth vivid Neon highlight without aggressive jarring spring scale
                         active_color = cls._get_highlight_color(raw_w, base_active_color)
-                        # Elastic bouncy zoom pop (120% snap)
                         text_parts.append(
-                            f"{{{active_color}\\t(0,70,\\fscx120\\fscy120)\\t(70,160,\\fscx100\\fscy100)}}{display_word}{{{normal_color}\\fscx100\\fscy100}}"
+                            f"{{{active_color}\\fscx106\\fscy106}}{display_word}{{{normal_color}\\fscx100\\fscy100}}"
                         )
                     else:
                         text_parts.append(f"{{{normal_color}}}{display_word}")

@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 import subprocess
@@ -136,8 +137,22 @@ class GeminiTranscriptionService:
                         config={"response_mime_type": "application/json"}
                     )
                     raw_text = response.text or "{}"
-                    data = json.loads(raw_text)
-                    words = data.get("words", [])
+                    # Resilient parser: Handles standard JSON or truncated streaming JSON via regex
+                    words = []
+                    try:
+                        data = json.loads(raw_text)
+                        if isinstance(data, list):
+                            words = data
+                        elif isinstance(data, dict):
+                            words = data.get("words", [])
+                    except Exception:
+                        # Extract all complete word JSON tuples even if the tail was truncated
+                        matches = re.findall(
+                            r'\{\s*"word"\s*:\s*"([^"]+)"\s*,\s*"start"\s*:\s*([0-9\.]+)\s*,\s*"end"\s*:\s*([0-9\.]+)',
+                            raw_text
+                        )
+                        if matches:
+                            words = [{"word": m[0], "start": float(m[1]), "end": float(m[2])} for m in matches]
                     if words and len(words) > 0:
                         # Convert to absolute timestamps matching start_time
                         processed_words = []
