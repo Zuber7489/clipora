@@ -10,13 +10,77 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.models.entities import Project, ProcessingJob, ClipCandidate, GeneratedClip
-from backend.app.schemas.project import ProjectResponse, ProjectDetailResponse
+from backend.app.schemas.project import ProjectResponse, ProjectDetailResponse, ImportUrlRequest, UrlInfoResponse
 from backend.app.schemas.job import ProcessingJobResponse
 from backend.app.services.video.probe import FFprobeService, MediaProbeError
 from backend.app.services.storage.manager import StorageManager
 from backend.app.services.pipeline import PipelineCoordinator
+from backend.app.services.video.downloader import VideoUrlDownloader, UrlDownloadError
 
 router = APIRouter()
+
+@router.post("/inspect-url", response_model=UrlInfoResponse)
+async def inspect_url(req: ImportUrlRequest):
+    """Fetches video metadata (title, duration, thumbnail) from YouTube or direct URL."""
+    try:
+        import asyncio
+        info = await asyncio.to_thread(VideoUrlDownloader.get_info, req.url)
+        return info
+    except UrlDownloadError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@router.post("/import-url", response_model=ProjectResponse)
+async def import_from_url(
+    req: ImportUrlRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Downloads video from YouTube or supported URL, probes metadata,
+    creates Project record, and launches the AI clipping pipeline.
+    """
+    import asyncio
+    project_id = str(uuid.uuid4())
+    
+    try:
+        download_data = await asyncio.to_thread(VideoUrlDownloader.download_video, req.url, project_id)
+    except UrlDownloadError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    meta = download_data["metadata"]
+    project_title = req.title.strip() if req.title and req.title.strip() else download_data["title"]
+
+    project = Project(
+        id=project_id,
+        title=project_title,
+        original_filename=download_data["filename"],
+        file_path=str(download_data["file_path"]),
+        file_size_bytes=meta["size_bytes"],
+        duration_seconds=meta["duration"],
+        video_width=meta["width"],
+        video_height=meta["height"],
+        fps=meta["fps"],
+        status="uploaded"
+    )
+    db.add(project)
+    await db.commit()
+    await db.refresh(project)
+
+    if req.auto_generate:
+        job_id = str(uuid.uuid4())
+        job = ProcessingJob(
+            id=job_id,
+            project_id=project.id,
+            job_type="full_pipeline",
+            progress_percentage=0,
+            current_step="Queued for processing",
+            status="queued"
+        )
+        db.add(job)
+        await db.commit()
+        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id)
+
+    return project
 
 @router.post("/upload", response_model=ProjectResponse)
 async def upload_video(

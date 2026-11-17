@@ -34,6 +34,18 @@ export class ApiService {
     return this.http.request<Project>(req);
   }
 
+  inspectUrl(url: string): Observable<{ title: string; duration: number; uploader: string; thumbnail?: string; webpage_url: string }> {
+    return this.http.post<any>(`${this.baseUrl}/projects/inspect-url`, { url });
+  }
+
+  importUrl(url: string, title?: string, autoGenerate: boolean = true): Observable<Project> {
+    return this.http.post<Project>(`${this.baseUrl}/projects/import-url`, {
+      url,
+      title: title || undefined,
+      auto_generate: autoGenerate
+    });
+  }
+
   generateClips(projectId: string): Observable<ProcessingJob> {
     return this.http.post<ProcessingJob>(`${this.baseUrl}/projects/${projectId}/generate`, {});
   }

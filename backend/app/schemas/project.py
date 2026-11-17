@@ -8,6 +8,18 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     pass
 
+class ImportUrlRequest(BaseModel):
+    url: str = Field(..., description="YouTube URL or direct video URL")
+    title: Optional[str] = Field(None, description="Optional custom title")
+    auto_generate: bool = Field(True, description="Whether to trigger 5 clips pipeline immediately")
+
+class UrlInfoResponse(BaseModel):
+    title: str
+    duration: float
+    uploader: str
+    thumbnail: Optional[str] = None
+    webpage_url: str
+
 class ProjectResponse(ProjectBase):
     id: str
     original_filename: str
