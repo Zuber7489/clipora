@@ -36,36 +36,45 @@ async def import_from_url(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Downloads video from YouTube or supported URL, probes metadata,
-    creates Project record, and launches the AI clipping pipeline.
+    Rapid URL Ingestion: Inspects video metadata in seconds, initializes Project & Job,
+    and delegates complete download and parallel clipping pipeline to the background.
     """
     import asyncio
     project_id = str(uuid.uuid4())
     
+    # 1. Fast metadata inspection (< 2 seconds)
     try:
-        download_data = await asyncio.to_thread(VideoUrlDownloader.download_video, req.url, project_id)
+        info = await asyncio.to_thread(VideoUrlDownloader.get_info, req.url)
     except UrlDownloadError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    meta = download_data["metadata"]
-    project_title = req.title.strip() if req.title and req.title.strip() else download_data["title"]
+    project_title = req.title.strip() if req.title and req.title.strip() else info.get("title", "Imported Podcast")
+    duration = float(info.get("duration", 0.0))
 
+    if duration > settings.MAX_VIDEO_DURATION_SECONDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Video duration ({duration/60:.1f}m) exceeds the maximum allowed limit of {settings.MAX_VIDEO_DURATION_SECONDS/60:.0f} minutes."
+        )
+
+    # 2. Store project record immediately with queued status
     project = Project(
         id=project_id,
         title=project_title,
-        original_filename=download_data["filename"],
-        file_path=str(download_data["file_path"]),
-        file_size_bytes=meta["size_bytes"],
-        duration_seconds=meta["duration"],
-        video_width=meta["width"],
-        video_height=meta["height"],
-        fps=meta["fps"],
-        status="uploaded"
+        original_filename=req.url,
+        file_path="",  # will be downloaded and populated in background pipeline
+        file_size_bytes=0,
+        duration_seconds=duration,
+        video_width=1920,
+        video_height=1080,
+        fps=30.0,
+        status="queued"
     )
     db.add(project)
     await db.commit()
     await db.refresh(project)
 
+    # 3. Create job and launch background pipeline immediately
     if req.auto_generate:
         job_id = str(uuid.uuid4())
         job = ProcessingJob(
@@ -73,12 +82,12 @@ async def import_from_url(
             project_id=project.id,
             job_type="full_pipeline",
             progress_percentage=0,
-            current_step="Queued for processing",
+            current_step="Initializing stream ingestion pipeline",
             status="queued"
         )
         db.add(job)
         await db.commit()
-        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id)
+        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, req.url)
 
     return project
 

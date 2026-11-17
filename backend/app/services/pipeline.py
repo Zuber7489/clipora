@@ -2,27 +2,32 @@ import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.config import settings
 from backend.app.core.database import AsyncSessionLocal
 from backend.app.models.entities import Project, ProcessingJob, ClipCandidate, GeneratedClip
 from backend.app.services.video.probe import FFprobeService
 from backend.app.services.video.processor import VideoProcessor
+from backend.app.services.video.downloader import VideoUrlDownloader
 from backend.app.services.subtitles.generator import SubtitleGenerator
 from backend.app.services.gemini.transcriber import GeminiTranscriptionService
 from backend.app.services.gemini.analyzer import GeminiVideoAnalyzer
 from backend.app.services.clipping.ranker import ClipRankingEngine
 from backend.app.services.storage.manager import StorageManager
+from backend.app.services.storage.firebase import FirebaseStorageService
 
 logger = logging.getLogger(__name__)
 
 class PipelineCoordinator:
     @classmethod
-    async def process_project_pipeline(cls, project_id: str, job_id: str) -> None:
+    async def process_project_pipeline(cls, project_id: str, job_id: str, source_url: Optional[str] = None) -> None:
         """
         Executes complete video-to-clips pipeline asynchronously in the background.
+        Includes high-speed stream fetching, Gemini speech intelligence & reasoning,
+        6-pillar ranking, and parallel multi-worker vertical clip rendering.
         """
         async with AsyncSessionLocal() as db:
             # Load project and job
@@ -45,8 +50,26 @@ class PipelineCoordinator:
                 project.status = "processing"
                 await db.commit()
 
-                video_path = Path(project.file_path)
-                
+                # Step 1b: If URL import, fetch stream in background
+                if source_url or (project.file_path and project.file_path.startswith("http")) or not project.file_path:
+                    target_url = source_url or project.original_filename
+                    job.progress_percentage = 10
+                    job.current_step = "Ingesting high-speed stream from YouTube..."
+                    await db.commit()
+
+                    download_data = await asyncio.to_thread(VideoUrlDownloader.download_video, target_url, project.id)
+                    video_path = Path(download_data["file_path"])
+                    project.file_path = str(video_path)
+                    project.original_filename = download_data["filename"]
+                    project.file_size_bytes = download_data["metadata"]["size_bytes"]
+                    project.duration_seconds = download_data["metadata"]["duration"]
+                    project.video_width = download_data["metadata"]["width"]
+                    project.video_height = download_data["metadata"]["height"]
+                    project.fps = download_data["metadata"]["fps"]
+                    await db.commit()
+                else:
+                    video_path = Path(project.file_path)
+
                 # Step 2: Probe media and extract audio (15%)
                 job.progress_percentage = 15
                 job.current_step = "Extracting high-fidelity audio for speech intelligence"
@@ -59,7 +82,6 @@ class PipelineCoordinator:
                 project.fps = meta["fps"]
 
                 audio_path = StorageManager.get_temp_file_path(prefix=f"audio_{project.id}", extension=".wav")
-                # Run synchronous FFmpeg extraction in threadpool
                 await asyncio.to_thread(VideoProcessor.extract_audio, video_path, audio_path)
                 project.audio_path = str(audio_path)
                 await db.commit()
@@ -127,49 +149,91 @@ class PipelineCoordinator:
                     db_candidates.append(c_record)
                 await db.commit()
 
-                # Step 6: Render 5 Vertical MP4 Videos with Styled Subtitles (75% -> 95%)
+                # Step 6: Parallel Multi-Worker Rendering (75% -> 95%)
+                job.progress_percentage = 75
+                job.current_step = "Parallel rendering 5 vertical 9:16 HD clips with karaoke subtitles"
+                await db.commit()
+
                 transcript_words = transcript.get("words", [])
                 rendered_clips = []
-                
-                for idx, c_model in enumerate(db_candidates[:5]):
-                    step_percent = 75 + int((idx / 5.0) * 20)
-                    job.progress_percentage = step_percent
-                    job.current_step = f"Rendering vertical 9:16 clip {idx+1} of 5 ({c_model.title})"
-                    await db.commit()
+                semaphore = asyncio.Semaphore(settings.MAX_PARALLEL_RENDERS)
 
-                    # 1. Generate ASS styled subtitles
-                    sub_path = StorageManager.get_temp_file_path(prefix=f"sub_{c_model.id}", extension=".ass")
-                    await asyncio.to_thread(
-                        SubtitleGenerator.generate_ass,
-                        words=transcript_words,
-                        output_path=sub_path,
-                        style_name="bold_viral",
-                        clip_start=c_model.start_time,
-                        clip_end=c_model.end_time
-                    )
+                async def render_candidate_task(c_model, idx: int):
+                    async with semaphore:
+                        logger.info(f"Starting parallel render for clip {idx+1}: {c_model.title}")
+                        
+                        # 1. Generate ASS styled subtitles
+                        sub_path = StorageManager.get_temp_file_path(prefix=f"sub_{c_model.id}", extension=".ass")
+                        await asyncio.to_thread(
+                            SubtitleGenerator.generate_ass,
+                            words=transcript_words,
+                            output_path=sub_path,
+                            style_name="bold_viral",
+                            clip_start=c_model.start_time,
+                            clip_end=c_model.end_time
+                        )
 
-                    # 2. Render 1080x1920 vertical MP4
-                    out_mp4 = StorageManager.get_clip_render_path(project.id, c_model.id)
-                    render_meta = await asyncio.to_thread(
-                        VideoProcessor.render_vertical_clip,
-                        source_video=video_path,
-                        start_time=c_model.start_time,
-                        end_time=c_model.end_time,
-                        output_video_path=out_mp4,
-                        subtitle_ass_path=sub_path,
-                        crop_mode="smart_blur"
-                    )
+                        # 2. Render 1080x1920 vertical MP4 (ultra-fast two-pass blur + veryfast preset)
+                        out_mp4 = StorageManager.get_clip_render_path(project.id, c_model.id)
+                        render_meta = await asyncio.to_thread(
+                            VideoProcessor.render_vertical_clip,
+                            source_video=video_path,
+                            start_time=c_model.start_time,
+                            end_time=c_model.end_time,
+                            output_video_path=out_mp4,
+                            subtitle_ass_path=sub_path,
+                            crop_mode="smart_blur"
+                        )
 
-                    # 3. Extract crisp thumbnail
-                    thumb_path = StorageManager.get_clip_thumbnail_path(project.id, c_model.id)
-                    await asyncio.to_thread(
-                        VideoProcessor.extract_thumbnail,
-                        video_path=out_mp4,
-                        timestamp=1.0,
-                        output_image_path=thumb_path
-                    )
+                        # 3. Extract crisp thumbnail
+                        thumb_path = StorageManager.get_clip_thumbnail_path(project.id, c_model.id)
+                        await asyncio.to_thread(
+                            VideoProcessor.extract_thumbnail,
+                            video_path=out_mp4,
+                            timestamp=1.0,
+                            output_image_path=thumb_path
+                        )
 
-                    # 4. Save GeneratedClip record
+                        # 4. Optional Firebase Cloud Storage Upload
+                        final_video_path = str(out_mp4)
+                        final_thumb_path = str(thumb_path)
+                        if settings.ENABLE_FIREBASE_STORAGE or settings.FIREBASE_STORAGE_BUCKET:
+                            try:
+                                fb_vid = await asyncio.to_thread(
+                                    FirebaseStorageService.upload_file,
+                                    out_mp4,
+                                    f"clips/{project.id}/clip_{c_model.id}.mp4",
+                                    "video/mp4"
+                                )
+                                fb_thumb = await asyncio.to_thread(
+                                    FirebaseStorageService.upload_file,
+                                    thumb_path,
+                                    f"clips/{project.id}/thumb_{c_model.id}.jpg",
+                                    "image/jpeg"
+                                )
+                                if fb_vid:
+                                    final_video_path = fb_vid
+                                if fb_thumb:
+                                    final_thumb_path = fb_thumb
+                            except Exception as fb_err:
+                                logger.warning(f"Firebase upload skipped: {fb_err}")
+
+                        return {
+                            "candidate": c_model,
+                            "render_meta": render_meta,
+                            "video_path": final_video_path,
+                            "thumb_path": final_thumb_path,
+                            "sub_path": str(sub_path)
+                        }
+
+                top_candidates = db_candidates[:5]
+                tasks = [render_candidate_task(c_cand, i) for i, c_cand in enumerate(top_candidates)]
+                results = await asyncio.gather(*tasks)
+
+                # Persist rendered clips
+                for res in results:
+                    c_model = res["candidate"]
+                    render_meta = res["render_meta"]
                     clip_rec = GeneratedClip(
                         project_id=project.id,
                         candidate_id=c_model.id,
@@ -177,9 +241,9 @@ class PipelineCoordinator:
                         start_time=c_model.start_time,
                         end_time=c_model.end_time,
                         duration=render_meta.get("duration", c_model.duration),
-                        video_path=str(out_mp4),
-                        thumbnail_path=str(thumb_path),
-                        subtitle_path=str(sub_path),
+                        video_path=res["video_path"],
+                        thumbnail_path=res["thumb_path"],
+                        subtitle_path=res["sub_path"],
                         subtitle_style="bold_viral",
                         aspect_ratio="9:16",
                         resolution="1080x1920",
@@ -188,7 +252,8 @@ class PipelineCoordinator:
                     )
                     db.add(clip_rec)
                     rendered_clips.append(clip_rec)
-                    await db.commit()
+                
+                await db.commit()
 
                 # Step 7: Completed!
                 job.progress_percentage = 100

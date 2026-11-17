@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     
     # Processing Limits & Validation
     MAX_UPLOAD_SIZE_MB: int = 2048
-    MAX_VIDEO_DURATION_SECONDS: int = 3600
+    MAX_VIDEO_DURATION_SECONDS: int = 7200
     SUPPORTED_EXTENSIONS: List[str] = [".mp4", ".mov", ".mkv", ".webm", ".avi"]
     
     # Video Processing Defaults
@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     OUTPUT_FPS: int = 30
     DEFAULT_CLIP_COUNT: int = 5
     
+    # Firebase Cloud Storage (Optional 100% Free CDN)
+    FIREBASE_SERVICE_ACCOUNT_PATH: Optional[str] = None
+    FIREBASE_STORAGE_BUCKET: Optional[str] = None
+    ENABLE_FIREBASE_STORAGE: bool = False
+    
+    # Ultra-Fast Parallel Concurrency
+    MAX_PARALLEL_RENDERS: int = 3
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",
