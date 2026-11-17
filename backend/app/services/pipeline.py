@@ -165,14 +165,21 @@ class PipelineCoordinator:
                     async with semaphore:
                         logger.info(f"Starting parallel render for clip {idx+1}: {c_model.title}")
                         
-                        # 1. Direct Gemini API transcription for this specific clip segment
-                        clip_words = await asyncio.to_thread(
-                            GeminiTranscriptionService.transcribe_clip_segment,
-                            audio_path=Path(project.audio_path) if project.audio_path else video_path,
-                            start_time=c_model.start_time,
-                            end_time=c_model.end_time,
-                            fallback_words=transcript_words
-                        )
+                        # 1. High-speed speech alignment: reuse existing transcript words if available
+                        existing_slice = [
+                            w for w in transcript_words
+                            if float(w.get("end", 0.0)) > c_model.start_time and float(w.get("start", 0.0)) < c_model.end_time
+                        ]
+                        if len(existing_slice) >= 6:
+                            clip_words = existing_slice
+                        else:
+                            clip_words = await asyncio.to_thread(
+                                GeminiTranscriptionService.transcribe_clip_segment,
+                                audio_path=Path(project.audio_path) if project.audio_path else video_path,
+                                start_time=c_model.start_time,
+                                end_time=c_model.end_time,
+                                fallback_words=transcript_words
+                            )
 
                         # 2. Generate ASS styled subtitles with Gemini words
                         sub_path = StorageManager.get_temp_file_path(prefix=f"sub_{c_model.id}", extension=".ass")

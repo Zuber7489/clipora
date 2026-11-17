@@ -38,18 +38,35 @@ Guidelines:
 
         if client:
             words = transcript_data.get("words", [])
-            # Build sample of genuine spoken words
-            word_sample = " ".join([w.get("word", "") for w in words[:1000]])
+            # Build timestamped transcript chunks so Gemini has true temporal grounding
+            transcript_blocks = []
+            if words:
+                chunk_words = []
+                chunk_start = float(words[0].get("start", 0.0))
+                for w in words:
+                    w_text = str(w.get("word", ""))
+                    chunk_words.append(w_text)
+                    if len(chunk_words) >= 12 or any(w_text.endswith(p) for p in [".", "?", "!", "\n"]):
+                        chunk_end = float(w.get("end", chunk_start + 1.5))
+                        transcript_blocks.append(f"[{chunk_start:.1f}s - {chunk_end:.1f}s]: {' '.join(chunk_words)}")
+                        chunk_words = []
+                        chunk_start = chunk_end
+                if chunk_words:
+                    transcript_blocks.append(f"[{chunk_start:.1f}s]: {' '.join(chunk_words)}")
+
+            transcript_text = "\n".join(transcript_blocks[:250]) if transcript_blocks else "No speech transcript available."
 
             prompt_content = f"""
 Analyze this podcast episode. The total video duration is {duration:.1f} seconds.
-Here is the actual spoken transcript of the show:
-\"\"\"{word_sample}\"\"\"
+Here is the timestamped spoken transcript:
+\"\"\"
+{transcript_text}
+\"\"\"
 
-Identify the top 5 to 8 most viral, funny, shocking, or high-retention moments.
-Return exact start_time and end_time (in seconds) matching natural punchlines, roasts, or reactions from the episode.
+Identify the top 5 to 8 most viral, funny, shocking, high-retention standalone moments (each 25 to 55 seconds).
+Use the bracketed timestamps from the transcript to provide exact, coherent start_time and end_time (in seconds).
 """
-            for model_name in [settings.GEMINI_ANALYSIS_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash"]:
+            for model_name in [settings.GEMINI_ANALYSIS_MODEL, "gemini-3.1-flash-lite"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,

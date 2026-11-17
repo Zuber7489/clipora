@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,8 +79,15 @@ async def stream_clip(clip_id: str, request: Request, db: AsyncSession = Depends
     """Streams the rendered MP4 video with HTTP range support for web player seeking."""
     result = await db.execute(select(GeneratedClip).where(GeneratedClip.id == clip_id))
     clip = result.scalar_one_or_none()
-    if not clip or not Path(clip.video_path).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not found.")
+    if not clip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clip not found.")
+
+    # Redirect to CDN if hosted remotely
+    if clip.video_path.startswith("http://") or clip.video_path.startswith("https://"):
+        return RedirectResponse(url=clip.video_path, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    if not Path(clip.video_path).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not found on disk.")
 
     path = Path(clip.video_path)
     file_size = path.stat().st_size
@@ -130,7 +137,13 @@ async def download_clip(clip_id: str, db: AsyncSession = Depends(get_db)):
     """Forces browser download of the MP4 file."""
     result = await db.execute(select(GeneratedClip).where(GeneratedClip.id == clip_id))
     clip = result.scalar_one_or_none()
-    if not clip or not Path(clip.video_path).exists():
+    if not clip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clip not found.")
+
+    if clip.video_path.startswith("http://") or clip.video_path.startswith("https://"):
+        return RedirectResponse(url=clip.video_path, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    if not Path(clip.video_path).exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not found.")
 
     safe_title = "".join(c for c in clip.title if c.isalnum() or c in (" ", "_", "-")).rstrip()

@@ -34,13 +34,15 @@ class SubtitleGenerator:
     GREEN_TRIGGERS = {
         'paisa', 'money', 'crore', 'lakh', 'cash', 'rich', 'win', 'best', 'top',
         'profit', 'success', 'super', 'deal', 'million', 'billion', '100', 'sahi',
-        'king', 'great', 'bada', 'growth', 'kamyab', 'hit', 'mast', 'star'
+        'king', 'great', 'bada', 'growth', 'kamyab', 'hit', 'mast', 'star',
+        'secret', 'scale', 'revenue', 'dollar', 'dollars', 'growth', 'smart', 'viral'
     }
 
     RED_TRIGGERS = {
         'roast', 'dead', 'khatam', 'destroy', 'galti', 'danger', 'hate', 'stop',
         'fail', 'mar', 'khatra', 'shock', 'warning', 'bad', 'loss', 'rip',
-        'pagal', 'worst', 'lose', 'no', 'never', 'galat', 'dhoka', 'chup', 'bawaal'
+        'pagal', 'worst', 'lose', 'no', 'never', 'galat', 'dhoka', 'chup', 'bawaal',
+        'insane', 'crazy', 'disaster', 'scam', 'wrong', 'mistake', 'shocking', 'kill'
     }
 
     @classmethod

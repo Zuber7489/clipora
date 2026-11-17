@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     PROCESSED_DIR: Path = STORAGE_DIR / "processed"
     TEMPORARY_DIR: Path = STORAGE_DIR / "temporary"
     
-    # Gemini AI (gemini-3.5-flash-lite for active capacity & < 3s latency)
+    # Gemini AI (gemini-3.1-flash-lite for active capacity & < 1.3s latency)
     GEMINI_API_KEY: str = ""
-    GEMINI_ANALYSIS_MODEL: str = "gemini-3.5-flash-lite"
-    GEMINI_TRANSCRIPTION_MODEL: str = "gemini-3.5-flash-lite"
+    GEMINI_ANALYSIS_MODEL: str = "gemini-3.1-flash-lite"
+    GEMINI_TRANSCRIPTION_MODEL: str = "gemini-3.1-flash-lite"
     GEMINI_TEMPERATURE: float = 0.3
     
     # Processing Limits & Validation
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ENABLE_FIREBASE_STORAGE: bool = False
     
     # Ultra-Fast Parallel Concurrency
-    MAX_PARALLEL_RENDERS: int = 3
+    MAX_PARALLEL_RENDERS: int = 2
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

@@ -27,7 +27,7 @@ class GeminiTranscriptionService:
         # 1. Primary: Gemini Flash Multimodal Audio Transcription
         client = GeminiClientWrapper.get_client()
         if client and audio_path.exists():
-            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash"]:
+            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.1-flash-lite"]:
                 try:
                     uploaded_audio = GeminiClientWrapper.upload_and_wait(audio_path, mime_type="audio/wav")
                     prompt = (
@@ -128,7 +128,7 @@ class GeminiTranscriptionService:
                 "{\"words\": [{\"word\": \"bhai\", \"start\": 0.0, \"end\": 0.4, \"speaker\": \"Speaker 1\"}]}"
             )
 
-            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash"]:
+            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.1-flash-lite"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,

@@ -1,6 +1,9 @@
 import os
 import shutil
 import logging
+from urllib.parse import urlparse
+import ipaddress
+import socket
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import yt_dlp
@@ -13,6 +16,31 @@ logger = logging.getLogger(__name__)
 class UrlDownloadError(Exception):
     pass
 
+def validate_safe_url(url: str) -> None:
+    """Blocks SSRF attacks (private IPs, localhost, cloud metadata endpoints)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise UrlDownloadError(f"Invalid URL protocol: '{parsed.scheme}'. Only http and https are permitted.")
+    hostname = parsed.hostname
+    if not hostname:
+        raise UrlDownloadError("Invalid URL: missing hostname.")
+    
+    # Block localhost & metadata
+    blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"}
+    if hostname.lower() in blocked_hosts or hostname.endswith(".internal") or hostname.endswith(".local"):
+        raise UrlDownloadError(f"Access to private or local host '{hostname}' is forbidden.")
+    
+    try:
+        ip = socket.gethostbyname(hostname)
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+            raise UrlDownloadError(f"Access to private IP range ({ip}) is strictly forbidden.")
+    except Exception as e:
+        if isinstance(e, UrlDownloadError):
+            raise e
+        # If DNS resolution fails, allow yt-dlp to handle or fail gracefully
+        pass
+
 class VideoUrlDownloader:
     """
     Downloads public user-specified video URLs (YouTube, direct MP4, or podcast links)
@@ -22,6 +50,7 @@ class VideoUrlDownloader:
     @classmethod
     def get_info(cls, url: str) -> Dict[str, Any]:
         """Extracts title and duration metadata without downloading the full video."""
+        validate_safe_url(url)
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -46,6 +75,7 @@ class VideoUrlDownloader:
         Ultra-fast audio ingestion: downloads ONLY audio stream (typically 15-25MB for 50 min),
         taking seconds rather than minutes.
         """
+        validate_safe_url(url)
         project_dir = settings.UPLOAD_DIR / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
         output_template = str(project_dir / "audio_stream.%(ext)s")
@@ -88,6 +118,7 @@ class VideoUrlDownloader:
         """
         Downloads ONLY the targeted section [start_time, end_time] in HD rather than downloading the entire video.
         """
+        validate_safe_url(url)
         import yt_dlp.utils
         output_path.parent.mkdir(parents=True, exist_ok=True)
         # Using output_path stem and ext
@@ -121,6 +152,7 @@ class VideoUrlDownloader:
         Downloads video from YouTube or supported platforms into project uploads directory.
         Returns probed metadata and saved file path.
         """
+        validate_safe_url(url)
         project_dir = settings.UPLOAD_DIR / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
         

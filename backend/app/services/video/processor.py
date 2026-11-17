@@ -11,23 +11,38 @@ from backend.app.services.video.reframer import FaceReframer
 logger = logging.getLogger(__name__)
 
 def _detect_hw_encoder() -> str:
-    """Auto-detect fastest available hardware encoder. Tries h264_mf (Intel/Windows) first."""
+    """Auto-detect fastest available hardware encoder. Tries h264_qsv / h264_mf first."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return "libx264"
+    
+    # 1. Try Intel QSV
     try:
-        # Quick test: encode 1 frame with h264_mf
-        result = subprocess.run(
+        res_qsv = subprocess.run(
+            [ffmpeg, "-y", "-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
+             "-c:v", "h264_qsv", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=5
+        )
+        if res_qsv.returncode == 0:
+            logger.info("✅ h264_qsv hardware encoder active — utilizing Intel GPU Quick Sync")
+            return "h264_qsv"
+    except Exception:
+        pass
+
+    # 2. Try Windows Media Foundation
+    try:
+        res_mf = subprocess.run(
             [ffmpeg, "-y", "-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
              "-c:v", "h264_mf", "-b:v", "1M", "-f", "null", "-"],
-            capture_output=True, text=True, timeout=8
+            capture_output=True, text=True, timeout=5
         )
-        if result.returncode == 0:
-            logger.info("✅ h264_mf hardware encoder detected — using Intel/Windows GPU")
+        if res_mf.returncode == 0:
+            logger.info("✅ h264_mf hardware encoder detected — utilizing Windows Hardware Acceleration")
             return "h264_mf"
     except Exception:
         pass
-    logger.info("⚡ Using libx264 veryfast software encoder")
+
+    logger.info("⚡ Using libx264 superfast software encoder")
     return "libx264"
 
 # Detect encoder once at module load
@@ -152,11 +167,10 @@ class VideoProcessor:
             vf = f"scale=-2:1920,crop=1080:1920:(in_w-1080)/2:0,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}"
         elif crop_mode == "smart_blur":
             use_filter_complex = True
-            # Blazingly fast two-pass bokeh + color grade + punch-zoom every 3s
-            zoom = "zoompan=z='if(lte(mod(on,90),3),1.08,1)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:fps=30"
+            # Super-fast background bokeh (downscale-blur-upscale) + vibrant foreground
             vf = (
                 f"[0:v]split=2[bg][fg];"
-                f"[bg]scale=108:192:force_original_aspect_ratio=increase,crop=108:192,boxblur=4:2,scale=1080:1920:flags=bilinear[bg_blurred];"
+                f"[bg]scale=54:96:force_original_aspect_ratio=increase,crop=54:96,boxblur=2:1,scale=1080:1920:flags=bilinear,eq=contrast=0.9:brightness=-0.08:saturation=1.2[bg_blurred];"
                 f"[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_scaled];"
                 f"[bg_blurred][fg_scaled]overlay=(W-w)/2:(H-h)/2,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
             )
@@ -174,20 +188,20 @@ class VideoProcessor:
         else:
             cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
 
-        # 🎙️ Vocal punch audio: loudnorm + bass cut + presence boost + volume bump
+        # 🎙️ Vocal punch audio: dynaudnorm (ultra-fast dynamic normalization) + presence boost
         audio_filter = (
-            "loudnorm=I=-14:TP=-1.0:LRA=8,"
-            "equalizer=f=200:t=o:w=1:g=-2,"
-            "equalizer=f=3000:t=o:w=1:g=3,"
-            "equalizer=f=8000:t=o:w=1:g=2,"
-            "volume=1.08"
+            "dynaudnorm=p=0.9:m=10.0:s=5,"
+            "equalizer=f=3200:t=o:w=1:g=2.5,"
+            "volume=1.06"
         )
 
-        # 🚀 Hardware encoder: h264_mf (Intel GPU) → libx264 veryfast fallback
-        if _HW_ENCODER == "h264_mf":
-            enc_args = ["-c:v", "h264_mf", "-b:v", "5M"]
+        # 🚀 Hardware encoder selection
+        if _HW_ENCODER == "h264_qsv":
+            enc_args = ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "23"]
+        elif _HW_ENCODER == "h264_mf":
+            enc_args = ["-c:v", "h264_mf", "-b:v", "6M"]
         else:
-            enc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
+            enc_args = ["-c:v", "libx264", "-preset", "superfast", "-crf", "21"]
 
         cmd.extend([
             "-af", audio_filter,
@@ -203,7 +217,7 @@ class VideoProcessor:
         try:
             subprocess.run(cmd, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Primary render failed, trying libx264 fallback: {e.stderr[-300:]}")
+            logger.warning(f"Primary render failed, trying superfast libx264 fallback: {e.stderr[-300:]}")
             # Fallback: simple scale + libx264, no color grade
             cmd_fallback = [
                 ffmpeg, "-y",
@@ -211,8 +225,8 @@ class VideoProcessor:
                 "-to", f"{end_time:.3f}",
                 "-i", str(source_video),
                 "-vf", f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black{sub_filter}",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
-                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-pix_fmt", "yuv420p",
+                "-af", "dynaudnorm=p=0.9:m=10.0",
                 "-c:a", "aac", "-b:a", "192k",
                 str(output_video_path)
             ]
