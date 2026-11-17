@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from backend.app.core.config import settings
 from backend.app.schemas.clip import GeminiClipAnalysisOutput
 from backend.app.services.gemini.client import GeminiClientWrapper
@@ -27,50 +27,74 @@ Guidelines:
         cls,
         video_path: Path,
         duration: float,
-        transcript_data: Dict[str, Any]
+        transcript_data: Dict[str, Any],
+        audio_path: Optional[Path] = None
     ) -> List[Dict[str, Any]]:
         """
-        Submits video and transcript to Gemini Flash for structured moment extraction.
-        Returns validated candidate clips.
+        Submits audio or structured transcript to Gemini Flash for structured moment extraction.
+        Returns validated genuine candidate clips.
         """
         client = GeminiClientWrapper.get_client()
         candidates: List[Dict[str, Any]] = []
 
         if client:
-            words = transcript_data.get("words", [])
-            # Build timestamped transcript chunks so Gemini has true temporal grounding
-            transcript_blocks = []
-            if words:
-                chunk_words = []
-                chunk_start = float(words[0].get("start", 0.0))
-                for w in words:
-                    w_text = str(w.get("word", ""))
-                    chunk_words.append(w_text)
-                    if len(chunk_words) >= 12 or any(w_text.endswith(p) for p in [".", "?", "!", "\n"]):
-                        chunk_end = float(w.get("end", chunk_start + 1.5))
-                        transcript_blocks.append(f"[{chunk_start:.1f}s - {chunk_end:.1f}s]: {' '.join(chunk_words)}")
-                        chunk_words = []
-                        chunk_start = chunk_end
-                if chunk_words:
-                    transcript_blocks.append(f"[{chunk_start:.1f}s]: {' '.join(chunk_words)}")
+            # If audio path exists, upload audio directly for 100% authentic moment grounding
+            uploaded_media = None
+            if audio_path and audio_path.exists():
+                try:
+                    uploaded_media = GeminiClientWrapper.upload_and_wait(audio_path, mime_type="audio/wav")
+                except Exception as up_err:
+                    logger.warning(f"Audio upload for moment analysis failed: {up_err}")
 
-            transcript_text = "\n".join(transcript_blocks[:250]) if transcript_blocks else "No speech transcript available."
+            if uploaded_media:
+                prompt_content = f"""
+You are an elite short-form video editor for Instagram Reels, YouTube Shorts, and TikTok.
+Listen carefully to this entire audio episode (duration: {duration:.1f} seconds).
+Extract the 5 to 8 funniest, most viral, shocking, or high-energy standalone moments (each 25 to 55 seconds).
 
-            prompt_content = f"""
-Analyze this podcast episode. The total video duration is {duration:.1f} seconds.
-Here is the timestamped spoken transcript:
+CRITICAL RULES:
+1. Real Content: The title and hook MUST reflect what is actually spoken in this episode (e.g. real jokes, roasts, punchlines, names).
+2. Exact Timestamps: Provide start_time and end_time (in seconds) matching natural conversation punchlines.
+3. High-retention Hook: Identify the exact spoken opening line.
+"""
+                contents_payload = [uploaded_media, prompt_content]
+            else:
+                words = transcript_data.get("words", [])
+                valid_words = [w for w in words if w.get("word") not in ("...", "", ".")]
+                transcript_blocks = []
+                if valid_words:
+                    chunk_words = []
+                    chunk_start = float(valid_words[0].get("start", 0.0))
+                    for w in valid_words:
+                        w_text = str(w.get("word", ""))
+                        chunk_words.append(w_text)
+                        if len(chunk_words) >= 12 or any(w_text.endswith(p) for p in [".", "?", "!", "\n"]):
+                            chunk_end = float(w.get("end", chunk_start + 1.5))
+                            transcript_blocks.append(f"[{chunk_start:.1f}s - {chunk_end:.1f}s]: {' '.join(chunk_words)}")
+                            chunk_words = []
+                            chunk_start = chunk_end
+                    if chunk_words:
+                        transcript_blocks.append(f"[{chunk_start:.1f}s]: {' '.join(chunk_words)}")
+
+                transcript_text = "\n".join(transcript_blocks[:250]) if transcript_blocks else f"Full episode media ({duration:.1f}s)"
+
+                prompt_content = f"""
+Analyze this podcast episode (duration: {duration:.1f}s).
+Spoken transcript:
 \"\"\"
 {transcript_text}
 \"\"\"
 
 Identify the top 5 to 8 most viral, funny, shocking, high-retention standalone moments (each 25 to 55 seconds).
-Use the bracketed timestamps from the transcript to provide exact, coherent start_time and end_time (in seconds).
+Provide exact start_time and end_time (in seconds) and genuine titles reflecting the actual episode topics.
 """
+                contents_payload = [prompt_content]
+
             for model_name in [settings.GEMINI_ANALYSIS_MODEL, "gemini-3.1-flash-lite"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
-                        contents=prompt_content,
+                        contents=contents_payload,
                         config={
                             "temperature": settings.GEMINI_TEMPERATURE,
                             "response_mime_type": "application/json",

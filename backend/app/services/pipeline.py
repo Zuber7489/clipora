@@ -111,7 +111,8 @@ class PipelineCoordinator:
                     GeminiVideoAnalyzer.analyze_podcast,
                     video_path,
                     project.duration_seconds,
-                    transcript
+                    transcript,
+                    audio_path=audio_path
                 )
 
                 # Step 5: Heuristic 6-Pillar Ranking (70%)
@@ -165,12 +166,13 @@ class PipelineCoordinator:
                     async with semaphore:
                         logger.info(f"Starting parallel render for clip {idx+1}: {c_model.title}")
                         
-                        # 1. High-speed speech alignment: reuse existing transcript words if available
+                        # 1. High-speed speech alignment: reuse existing transcript words if non-dummy and valid
                         existing_slice = [
                             w for w in transcript_words
                             if float(w.get("end", 0.0)) > c_model.start_time and float(w.get("start", 0.0)) < c_model.end_time
+                            and str(w.get("word", "")).strip() not in ("...", "", ".")
                         ]
-                        if len(existing_slice) >= 6:
+                        if len(existing_slice) >= 8:
                             clip_words = existing_slice
                         else:
                             clip_words = await asyncio.to_thread(
@@ -178,7 +180,7 @@ class PipelineCoordinator:
                                 audio_path=Path(project.audio_path) if project.audio_path else video_path,
                                 start_time=c_model.start_time,
                                 end_time=c_model.end_time,
-                                fallback_words=transcript_words
+                                fallback_words=[]
                             )
 
                         # 2. Generate ASS styled subtitles with Gemini words

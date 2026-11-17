@@ -93,22 +93,36 @@ class SubtitleGenerator:
         """
         Generates high-retention .ass subtitle file with tri-color elastic bounce animations and top hook banner.
         """
-        # Filter words within the clip range
+        # Filter and normalize words within the clip range
         clip_words = []
+        # Check if timestamps are already relative (e.g. 0.0s upwards) vs absolute (around clip_start)
+        first_start = float(words[0].get("start", 0.0)) if words else 0.0
+        is_already_relative = (first_start < 5.0 and clip_start > 15.0)
+
         for w in words:
+            raw_word = str(w.get("word", "")).strip()
+            if not raw_word or raw_word in ("...", "."):
+                continue
+
             w_start = float(w.get("start", 0.0))
             w_end = float(w.get("end", 0.0))
-            if w_end > clip_start and w_start < clip_end:
+
+            if is_already_relative:
+                rel_start = max(0.0, w_start)
+                rel_end = max(rel_start + 0.15, min(clip_end - clip_start, w_end))
+            else:
+                if w_end <= clip_start or w_start >= clip_end:
+                    continue
                 rel_start = max(0.0, w_start - clip_start)
-                rel_end = max(rel_start + 0.1, min(clip_end - clip_start, w_end - clip_start))
-                raw_word = str(w.get("word", "")).strip()
-                hinglish_word = devanagari_to_hinglish(raw_word)
-                clip_words.append({
-                    "word": hinglish_word,
-                    "start": rel_start,
-                    "end": rel_end,
-                    "speaker": w.get("speaker", "Speaker")
-                })
+                rel_end = max(rel_start + 0.15, min(clip_end - clip_start, w_end - clip_start))
+
+            hinglish_word = devanagari_to_hinglish(raw_word)
+            clip_words.append({
+                "word": hinglish_word,
+                "start": rel_start,
+                "end": rel_end,
+                "speaker": w.get("speaker", "Speaker")
+            })
 
         # Duration of relative clip
         rel_duration = max(1.0, clip_end - clip_start)
