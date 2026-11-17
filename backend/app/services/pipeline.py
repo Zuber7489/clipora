@@ -173,7 +173,8 @@ class PipelineCoordinator:
                             output_path=sub_path,
                             style_name="bold_viral",
                             clip_start=c_model.start_time,
-                            clip_end=c_model.end_time
+                            clip_end=c_model.end_time,
+                            headline_hook=c_model.title
                         )
 
                         # 2. Render 1080x1920 vertical MP4 (ultra-fast two-pass blur + veryfast preset)

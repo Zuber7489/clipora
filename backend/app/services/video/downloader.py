@@ -130,9 +130,7 @@ class VideoUrlDownloader:
             'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
-            'writesubtitles': True,
-            'writeautomaticsub': True,
-            'subtitleslangs': ['hi', 'en', 'hi-Latn', 'en-US'],
+            'writesubtitles': False,
             'quiet': True,
             'no_warnings': True,
             'max_filesize': settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
@@ -148,7 +146,6 @@ class VideoUrlDownloader:
                 target_file = project_dir / f"{video_id}.mp4"
                 if not target_file.exists():
                     candidates = list(project_dir.glob(f"{video_id}.*"))
-                    # Filter out subtitle files
                     media_candidates = [c for c in candidates if c.suffix.lower() not in ['.vtt', '.srt', '.part']]
                     if media_candidates:
                         target_file = media_candidates[0]
@@ -157,6 +154,23 @@ class VideoUrlDownloader:
 
         except Exception as e:
             raise UrlDownloadError(f"Failed to download video from URL: {e}")
+
+        # Optional Subtitle Ingestion: Attempt to fetch real captions without failing on 429
+        try:
+            sub_opts = {
+                'skip_download': True,
+                'writesubtitles': True,
+                'writeautomaticsub': True,
+                'subtitleslangs': ['hi', 'en', 'hi-Latn', 'en-US'],
+                'outtmpl': str(project_dir / "%(id)s.%(ext)s"),
+                'quiet': True,
+                'no_warnings': True,
+                'ignoreerrors': True,
+            }
+            with yt_dlp.YoutubeDL(sub_opts) as ydl_sub:
+                ydl_sub.download([url])
+        except Exception as sub_err:
+            logger.warning(f"Optional subtitle download skipped: {sub_err}")
 
         # Probe the downloaded video
         try:

@@ -172,7 +172,8 @@ async def re_render_clip(
         output_path=sub_path,
         style_name=subtitle_style,
         clip_start=start_time,
-        clip_end=end_time
+        clip_end=end_time,
+        headline_hook=clip.title
     )
 
     out_mp4 = StorageManager.get_clip_render_path(project.id, clip.id)
