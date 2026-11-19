@@ -83,7 +83,7 @@ class PipelineCoordinator:
                 project.video_height = meta["height"]
                 project.fps = meta["fps"]
 
-                audio_path = StorageManager.get_temp_file_path(prefix=f"audio_{project.id}", extension=".wav")
+                audio_path = StorageManager.get_temp_file_path(prefix=f"audio_{project.id}", extension=".mp3")
                 await asyncio.to_thread(VideoProcessor.extract_audio, video_path, audio_path)
                 project.audio_path = str(audio_path)
                 await db.commit()

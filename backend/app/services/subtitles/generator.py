@@ -184,18 +184,9 @@ PlayResY: {video_height}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Header,Segoe UI Black,48,&H00D7FF&,&H000000&,&H000000&,&HA0000000,1,0,0,0,100,100,1,0,1,6,3,8,80,80,140,1
 {preset.to_ass_style_line("Default")}
 """
         dialogue_lines: List[str] = []
-
-        if headline_hook and headline_hook.strip():
-            clean_head = devanagari_to_hinglish(headline_hook.strip()).upper()
-            if len(clean_head) > 42:
-                clean_head = clean_head[:39] + "..."
-            dialogue_lines.append(
-                f"Dialogue: 0,0:00:00.00,{rel_duration_str},Header,,0,0,0,,{{\\c&H00D7FF&\\3c&H000000&\\bord6\\shad3}}{{\\fnSegoe UI Emoji}}🔥{{\\fn}} {clean_head} {{\\fnSegoe UI Emoji}}🔥{{\\fn}}"
-            )
 
         default_active_bgr = preset.primary_color
 

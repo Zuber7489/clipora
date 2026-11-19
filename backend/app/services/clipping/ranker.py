@@ -36,8 +36,9 @@ class ClipRankingEngine:
         video_duration: float = 3600.0
     ) -> List[Dict[str, Any]]:
         """
-        Validates timestamps, calculates scores, eliminates significant overlaps,
-        and selects top non-overlapping clips.
+        Validates timestamps, calculates scores, and selects the top clips with
+        guaranteed temporal diversity across the ENTIRE video timeline (beginning,
+        middle, climax, and ending) rather than clustering at the start.
         """
         valid_candidates = []
         for c in candidates:
@@ -54,37 +55,77 @@ class ClipRankingEngine:
             c["duration"] = round(duration, 2)
             valid_candidates.append(c)
 
+        if not valid_candidates:
+            return []
+
         # Sort descending by viral score
         valid_candidates.sort(key=lambda x: x["viral_score"], reverse=True)
 
-        # Non-overlapping greedy selection
         selected: List[Dict[str, Any]] = []
+
+        # --- TIMELINE BUCKET PARTITIONING FOR LONG VIDEOS (>= 3 minutes) ---
+        if video_duration >= 180.0 and len(valid_candidates) >= target_count:
+            bucket_size = video_duration / float(target_count)
+            buckets = [[] for _ in range(target_count)]
+
+            for cand in valid_candidates:
+                mid = (cand["start_time"] + cand["end_time"]) / 2.0
+                b_idx = min(target_count - 1, int(mid // bucket_size))
+                buckets[b_idx].append(cand)
+
+            # Phase 1: Pick the #1 highest-scoring candidate from each timeline bucket
+            for b_idx in range(target_count):
+                bucket_cands = buckets[b_idx]
+                if not bucket_cands:
+                    continue
+                # Pick the best in this bucket that doesn't overlap with already selected
+                for cand in bucket_cands:
+                    c_start = cand["start_time"]
+                    c_end = cand["end_time"]
+                    overlap = False
+                    for s in selected:
+                        s_start = s["start_time"]
+                        s_end = s["end_time"]
+                        overlap_dur = max(0.0, min(c_end, s_end) - max(c_start, s_start))
+                        if overlap_dur > 5.0 or abs(c_start - s_start) < 30.0:
+                            overlap = True
+                            break
+                    if not overlap:
+                        cand["is_selected"] = True
+                        selected.append(cand)
+                        break
+
+        # Phase 2: Backfill any remaining slots from highest scoring available candidates
+        # enforcing temporal spacing so multiple clips don't pile up in the same 60 seconds
         for cand in valid_candidates:
             if len(selected) >= target_count:
                 break
-            
+            if cand in selected:
+                continue
+
             c_start = cand["start_time"]
             c_end = cand["end_time"]
-            
-            # Check overlap with already selected clips (>10s overlap rejected)
             overlap = False
             for s in selected:
                 s_start = s["start_time"]
                 s_end = s["end_time"]
-                overlap_duration = max(0.0, min(c_end, s_end) - max(c_start, s_start))
-                if overlap_duration > 8.0:
+                overlap_dur = max(0.0, min(c_end, s_end) - max(c_start, s_start))
+                min_gap = 45.0 if video_duration >= 600.0 else 10.0
+                if overlap_dur > 5.0 or abs(c_start - s_start) < min_gap:
                     overlap = True
                     break
-            
+
             if not overlap:
                 cand["is_selected"] = True
                 selected.append(cand)
 
-        # If fewer than target_count due to overlap filter, backfill best remaining
+        # Fallback if still under target_count
         if len(selected) < target_count:
             for cand in valid_candidates:
                 if cand not in selected and len(selected) < target_count:
                     cand["is_selected"] = True
                     selected.append(cand)
 
+        # Sort the chosen clips chronologically by start_time
+        selected.sort(key=lambda x: x["start_time"])
         return selected

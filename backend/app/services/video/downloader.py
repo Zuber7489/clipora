@@ -159,9 +159,10 @@ class VideoUrlDownloader:
         output_template = str(project_dir / "%(id)s.%(ext)s")
 
         ydl_opts = {
-            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
+            'format': 'bestvideo[height<=1080][fps<=30]+bestaudio/bestvideo[height<=720]+bestaudio/best[height<=720]/best',
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
+            'concurrent_fragment_downloads': 8,
             'writesubtitles': False,
             'writeautomaticsub': False,
             'subtitleslangs': [],
@@ -206,8 +207,9 @@ class VideoUrlDownloader:
                 f"Video duration ({meta['duration']/60:.1f}m) exceeds the maximum allowed limit of {settings.MAX_VIDEO_DURATION_SECONDS/60:.0f} minutes."
             )
 
-        # Subtitles will be transcribed directly by Gemini API
-        sub_file = None
+        # Check if any subtitles were downloaded by yt-dlp
+        vtt_files = list(project_dir.glob("*.vtt")) + list(project_dir.glob("*.srt"))
+        sub_file = vtt_files[0] if vtt_files else None
 
         return {
             "title": title,

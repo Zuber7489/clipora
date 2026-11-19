@@ -35,7 +35,7 @@ class GeminiClipItem(BaseModel):
     end_time: float = Field(..., description="End timestamp in seconds (must align with end of thought, roughly 30-60s)")
     hook: str = Field(..., description="The attention-grabbing hook or sentence opening the clip")
     description: str = Field(..., description="Brief summary of the clip topic")
-    category: str = Field(default="insight", description="One of: motivation, debate, insight, humor, story, education")
+    category: str = Field(default="gaming", description="One of: gaming, roast, reaction, humor, debate, insight, motivation, story")
     speaker: Optional[str] = Field(default="Speaker 1", description="Primary speaker in this moment")
     reason: str = Field(..., description="Why this moment has viral potential and works as a standalone short")
     hook_score: int = Field(default=80, ge=1, le=100, description="Score 1-100 for hook strength")
@@ -46,7 +46,7 @@ class GeminiClipItem(BaseModel):
     ending_score: int = Field(default=80, ge=1, le=100, description="Score 1-100 for satisfying conclusion")
 
 class GeminiClipAnalysisOutput(BaseModel):
-    clips: List[GeminiClipItem] = Field(..., description="List of 5 to 8 strongest standalone clip moments identified")
+    clips: List[GeminiClipItem] = Field(..., description="List of 8 to 15 strongest standalone clip moments distributed across the entire episode (beginning, middle, climax, and ending)")
 
 class GeneratedClipResponse(BaseModel):
     id: str

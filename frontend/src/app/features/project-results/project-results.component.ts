@@ -61,10 +61,6 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                   preload="metadata"
                   class="vertical-video">
                 </video>
-                <div class="clip-badge-overlay">
-                  <span class="badge badge-viral">{{ clip.viral_score }}/100 VIRAL</span>
-                  <span class="badge badge-category">{{ clip.category }}</span>
-                </div>
               </div>
 
               <!-- Clip Metadata & Info -->
@@ -244,23 +240,6 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
       object-fit: cover;
     }
 
-    .clip-badge-overlay {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      right: 12px;
-      display: flex;
-      justify-content: space-between;
-      pointer-events: none;
-      z-index: 5;
-    }
-
-    .badge-category {
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
 
     .clip-body {
       padding: 18px;

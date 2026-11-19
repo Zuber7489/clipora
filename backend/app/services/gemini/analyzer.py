@@ -11,15 +11,15 @@ logger = logging.getLogger(__name__)
 
 class GeminiVideoAnalyzer:
     SYSTEM_PROMPT = """
-You are an elite short-form video editor and viral content strategist for Instagram Reels, YouTube Shorts, and TikTok.
-Your job is to analyze long podcast media, comedy shows, and talk shows (supporting Hindi, Hinglish, and English conversation), then extract the 5 to 8 most viral, hilarious, high-energy, and standalone moments.
+You are an elite, world-class viral short-form video editor for YouTube Shorts, Instagram Reels, and TikTok (in the style of OpusClip, Klap, and top viral clipping editors).
+You analyze long videos (podcasts, gaming streams, comedy shows, interviews, commentaries, reactions, and vlogs in Hindi, Hinglish, and English) and extract the highest-potential, hyper-engaging standalone clips.
 
-Guidelines:
-1. High-retention Hook: The first 3 seconds must begin with a strong roast, controversial statement, hilarious punchline, or shocking question.
-2. Standalone Coherence: The moment must make complete sense on its own without needing the rest of the 50-minute episode.
-3. Ideal Duration: Target 30 to 60 seconds (minimum 15s, maximum 90s). Never cut punchlines or laugh reactions in half.
-4. Maximum Engagement: Pick high-energy banter, savage roasts, sudden revelations, funny twists, or profound insights.
-5. Exact Timestamps: Return precise start_time and end_time (in seconds) matching natural conversation pauses and audience/judge reactions.
+KEY VIRAL CRITERIA:
+1. High-Retention Hook (First 3 Seconds): Must start immediately with a shocking statement, savage roast, intense scream/cheer, crazy question, funny failure, or unexpected punchline that stops the scroll.
+2. Complete Standalone Arc: Must make total sense to a viewer who has NEVER watched the full video. Do not leave jokes hanging or cut punchlines mid-sentence.
+3. High Emotional Energy: Prioritize peak moments — intense laughter, heated arguments, unbelievable gaming clutches or fails, savage roasts, emotional confessions, or mind-blowing insights.
+4. Catchy Viral Title: Write sensational, click-worthy titles with relevant emojis (e.g., 'Bro Lost His Mind Here! 💀', 'Bhai Ne GTA 6 Mein Yeh Kya Kardiya?! 😱', 'The Most Savage Roast Ever 😂'). Match the spoken language/vibe (Hinglish/English).
+5. Exact Timestamps: start_time and end_time MUST be precise down to the second, capturing the complete thought from beginning to reaction/pause (ideal duration: 30 to 60 seconds; min 18s, max 85s).
 """
 
     @classmethod
@@ -31,31 +31,46 @@ Guidelines:
         audio_path: Optional[Path] = None
     ) -> List[Dict[str, Any]]:
         """
-        Submits audio or structured transcript to Gemini Flash for structured moment extraction.
+        Submits audio or structured transcript to Gemini for structured moment extraction across the entire video.
         Returns validated genuine candidate clips.
         """
         client = GeminiClientWrapper.get_client()
         candidates: List[Dict[str, Any]] = []
 
         if client:
+            # 5 timeline partition checkpoints to enforce coverage across the entire episode
+            dur_mins = duration / 60.0
+            p1 = round(duration * 0.20, 1)
+            p2 = round(duration * 0.40, 1)
+            p3 = round(duration * 0.60, 1)
+            p4 = round(duration * 0.80, 1)
+
             # If audio path exists, upload audio directly for 100% authentic moment grounding
             uploaded_media = None
             if audio_path and audio_path.exists():
                 try:
-                    uploaded_media = GeminiClientWrapper.upload_and_wait(audio_path, mime_type="audio/wav")
+                    audio_mime = "audio/mp3" if audio_path.suffix.lower() == ".mp3" else "audio/wav"
+                    uploaded_media = GeminiClientWrapper.upload_and_wait(audio_path, mime_type=audio_mime)
                 except Exception as up_err:
                     logger.warning(f"Audio upload for moment analysis failed: {up_err}")
 
             if uploaded_media:
                 prompt_content = f"""
-You are an elite short-form video editor for Instagram Reels, YouTube Shorts, and TikTok.
-Listen carefully to this entire audio episode (duration: {duration:.1f} seconds).
-Extract the 5 to 8 funniest, most viral, shocking, or high-energy standalone moments (each 25 to 55 seconds).
+Listen carefully to this entire episode audio (total duration: {duration:.1f} seconds / {dur_mins:.1f} minutes).
+Your mission is to extract 8 to 15 of the absolute BEST, most viral, funniest, or most shocking standalone clip moments across the ENTIRE duration.
 
-CRITICAL RULES:
+CRITICAL TIMELINE COVERAGE MANDATE (MUST DISTRIBUTE ACROSS ENTIRE EPISODE):
+Do NOT pick moments only from the first few minutes! You MUST search through and distribute candidate moments across all 5 zones of the video:
+- Zone 1 [0s to {p1:.0f}s]: 2 to 3 viral moments from the opening, intro banter, or initial action
+- Zone 2 [{p1:.0f}s to {p2:.0f}s]: 2 to 3 viral moments from early-mid gameplay/discussion
+- Zone 3 [{p2:.0f}s to {p3:.0f}s]: 2 to 3 viral moments from the mid-point (peak debates, funniest failures, intense clutches)
+- Zone 4 [{p3:.0f}s to {p4:.0f}s]: 2 to 3 viral moments from late-mid action / roasts / dramatic twists
+- Zone 5 [{p4:.0f}s to {duration:.0f}s]: 2 to 3 viral moments from the climax, final challenge, or memorable conclusion
+
+RULES:
 1. Real Content: The title and hook MUST reflect what is actually spoken in this episode (e.g. real jokes, roasts, punchlines, names).
-2. Exact Timestamps: Provide start_time and end_time (in seconds) matching natural conversation punchlines.
-3. High-retention Hook: Identify the exact spoken opening line.
+2. Catchy Titles: Write high-curiosity viral titles with emojis (e.g. 'Bro Did NOT Expect This! 💀', 'Yeh Kya Kardiya Bhai Ne? 😂').
+3. Exact Timestamps: Provide start_time and end_time (in seconds) matching natural conversation punchlines.
 """
                 contents_payload = [uploaded_media, prompt_content]
             else:
@@ -76,21 +91,35 @@ CRITICAL RULES:
                     if chunk_words:
                         transcript_blocks.append(f"[{chunk_start:.1f}s]: {' '.join(chunk_words)}")
 
-                transcript_text = "\n".join(transcript_blocks[:250]) if transcript_blocks else f"Full episode media ({duration:.1f}s)"
+                # Sample evenly across the whole video rather than only taking the first 250
+                if len(transcript_blocks) > 350:
+                    step = len(transcript_blocks) / 300.0
+                    sampled_blocks = [transcript_blocks[int(i * step)] for i in range(300)]
+                    transcript_text = "\n".join(sampled_blocks)
+                elif transcript_blocks:
+                    transcript_text = "\n".join(transcript_blocks)
+                else:
+                    transcript_text = f"Full episode media ({duration:.1f}s)"
 
                 prompt_content = f"""
-Analyze this podcast episode (duration: {duration:.1f}s).
-Spoken transcript:
+Analyze this entire video episode (duration: {duration:.1f}s / {dur_mins:.1f}m).
+Spoken transcript samples across the episode:
 \"\"\"
 {transcript_text}
 \"\"\"
 
-Identify the top 5 to 8 most viral, funny, shocking, high-retention standalone moments (each 25 to 55 seconds).
-Provide exact start_time and end_time (in seconds) and genuine titles reflecting the actual episode topics.
+Identify 8 to 15 of the most viral, funny, shocking, high-retention standalone moments distributed across the ENTIRE duration:
+- Zone 1 [0s - {p1:.0f}s]: 2 to 3 moments
+- Zone 2 [{p1:.0f}s - {p2:.0f}s]: 2 to 3 moments
+- Zone 3 [{p2:.0f}s - {p3:.0f}s]: 2 to 3 moments
+- Zone 4 [{p3:.0f}s - {p4:.0f}s]: 2 to 3 moments
+- Zone 5 [{p4:.0f}s - {duration:.0f}s]: 2 to 3 moments
+
+Provide exact start_time and end_time (in seconds) and punchy viral titles with emojis.
 """
                 contents_payload = [prompt_content]
 
-            for model_name in [settings.GEMINI_ANALYSIS_MODEL, "gemini-3.1-flash-lite"]:
+            for model_name in [settings.GEMINI_ANALYSIS_MODEL, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
@@ -117,7 +146,7 @@ Provide exact start_time and end_time (in seconds) and genuine titles reflecting
                                 "duration": round(c_end - c_start, 2),
                                 "hook": devanagari_to_hinglish(item.get("hook", "")),
                                 "description": devanagari_to_hinglish(item.get("description", "")),
-                                "category": item.get("category", "comedy"),
+                                "category": item.get("category", "gaming"),
                                 "speaker": item.get("speaker", "Speaker"),
                                 "reason": item.get("reason", "High retention hook and punchline"),
                                 "viral_score": item.get("hook_score", 90),
@@ -130,7 +159,7 @@ Provide exact start_time and end_time (in seconds) and genuine titles reflecting
                             })
 
                     if len(candidates) >= 5:
-                        logger.info(f"Gemini {model_name} extracted {len(candidates)} genuine viral moments.")
+                        logger.info(f"Gemini {model_name} extracted {len(candidates)} genuine viral moments across the timeline.")
                         return candidates
                 except Exception as e:
                     logger.warning(f"Gemini model {model_name} moment extraction failed: {e}")
@@ -155,13 +184,13 @@ Provide exact start_time and end_time (in seconds) and genuine titles reflecting
             start = round(max(0.0, i * interval_step + 10.0), 2)
             end = round(min(duration, start + clip_target_duration), 2)
             
-            # Find words in this slice to create authentic title
-            slice_words = [devanagari_to_hinglish(w["word"]) for w in words if start <= w.get("start", 0) <= end]
-            if slice_words:
+            # Find genuine spoken words in this slice to create authentic title
+            slice_words = [devanagari_to_hinglish(w["word"]) for w in words if start <= w.get("start", 0) <= end and str(w.get("word", "")).strip() not in ("...", "", ".")]
+            if slice_words and len(slice_words) >= 3:
                 snippet = " ".join(slice_words[:6])
-                title = snippet.capitalize() + "..."
+                title = snippet.capitalize() + "... 🔥"
             else:
-                title = f"Highlight Moment #{i+1}"
+                title = f"Viral Moment #{i+1} ({int(start//60)}m - {int(end//60)}m) 🔥"
 
             candidates.append({
                 "title": title,

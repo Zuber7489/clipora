@@ -25,45 +25,12 @@ class GeminiTranscriptionService:
         Prioritizes official Gemini Speech Intelligence models (gemini-3.5-flash-lite / gemini-3.8-flash),
         falling back to local subtitles (VTT/SRT) only if API is unavailable.
         """
-        # 1. Primary: Gemini Flash Multimodal Audio Transcription
-        client = GeminiClientWrapper.get_client()
-        if client and audio_path.exists():
-            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.1-flash-lite"]:
-                try:
-                    uploaded_audio = GeminiClientWrapper.upload_and_wait(audio_path, mime_type="audio/wav")
-                    prompt = (
-                        "Listen carefully to this entire audio and transcribe all spoken dialogue with word-level timestamps. "
-                        "RULES:\n"
-                        "1. SCRIPT: Use natural Hinglish / English in Latin alphabet (e.g. 'bhai kya season', 'sam for balraj'). "
-                        "NEVER output Devanagari Hindi characters (no हिन्दी लिपि).\n"
-                        "2. Output format: Valid JSON object with this exact structure:\n"
-                        "{\"full_text\": \"...\", \"words\": [{\"word\": \"bhai\", \"start\": 0.0, \"end\": 0.4, \"speaker\": \"Speaker 1\"}]}"
-                    )
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=[uploaded_audio, prompt],
-                        config={
-                            "response_mime_type": "application/json"
-                        }
-                    )
-                    raw_text = response.text or "{}"
-                    data = json.loads(raw_text)
-                    if isinstance(data, dict) and "words" in data and len(data["words"]) > 0:
-                        for w in data["words"]:
-                            w["word"] = devanagari_to_hinglish(w.get("word", ""))
-                        if "full_text" in data:
-                            data["full_text"] = devanagari_to_hinglish(data["full_text"])
-                        logger.info(f"✅ Gemini API ({model_name}) successfully transcribed {len(data['words'])} words from audio!")
-                        return data
-                except Exception as e:
-                    logger.warning(f"Gemini audio transcription with {model_name} failed: {e}")
-
-        # 2. Secondary fallback: check for extracted VTT/SRT if available
+        # 1. Primary fast check: use downloaded YouTube VTT/SRT subtitles if available
         if subtitle_path and subtitle_path.exists():
             try:
                 parsed_vtt = VttSubtitleParser.parse_file(subtitle_path)
                 if parsed_vtt and len(parsed_vtt.get("words", [])) > 5:
-                    logger.info(f"Loaded {len(parsed_vtt['words'])} fallback subtitle words from {subtitle_path.name}")
+                    logger.info(f"Loaded {len(parsed_vtt['words'])} genuine subtitle words from {subtitle_path.name}")
                     return parsed_vtt
             except Exception as e:
                 logger.warning(f"Failed to parse subtitle file {subtitle_path}: {e}")
@@ -75,10 +42,111 @@ class GeminiTranscriptionService:
                 try:
                     parsed_vtt = VttSubtitleParser.parse_file(vf)
                     if parsed_vtt and len(parsed_vtt.get("words", [])) > 5:
-                        logger.info(f"Loaded {len(parsed_vtt['words'])} fallback subtitle words from {vf.name}")
+                        logger.info(f"Loaded {len(parsed_vtt['words'])} genuine subtitle words from {vf.name}")
                         return parsed_vtt
                 except Exception:
                     pass
+
+        # 2. Gemini Multimodal Audio Transcription
+        client = GeminiClientWrapper.get_client()
+        if client and audio_path.exists():
+            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.8-flash", "gemini-3.1-flash-lite"]:
+                try:
+                    audio_mime = "audio/mp3" if audio_path.suffix.lower() == ".mp3" else "audio/wav"
+                    uploaded_audio = GeminiClientWrapper.upload_and_wait(audio_path, mime_type=audio_mime)
+                    if video_duration <= 180:
+                        prompt = (
+                            "Listen carefully to this audio and transcribe all spoken dialogue with word-level timestamps. "
+                            "RULES:\n"
+                            "1. SCRIPT: Use natural Hinglish / English in Latin alphabet (e.g. 'bhai kya season', 'sam for balraj'). "
+                            "NEVER output Devanagari Hindi characters (no हिन्दी लिपि).\n"
+                            "2. Output format: Valid JSON object with this exact structure:\n"
+                            "{\"full_text\": \"...\", \"words\": [{\"word\": \"bhai\", \"start\": 0.0, \"end\": 0.4, \"speaker\": \"Speaker 1\"}]}"
+                        )
+                    else:
+                        prompt = (
+                            "Listen carefully to this entire audio episode. Transcribe the dialogue into sequential timestamped segments. "
+                            "RULES:\n"
+                            "1. SCRIPT: Use natural Hinglish / English in Latin alphabet (e.g. 'bhai kya game hai', 'mast scene tha'). "
+                            "NEVER output Devanagari Hindi characters (no हिन्दी लिपि).\n"
+                            "2. Segments: Group into short spoken phrases (5-15 words each) with exact start and end timestamps in seconds spanning 0s to end.\n"
+                            "3. Output format: Valid JSON object with this exact structure:\n"
+                            "{\"segments\": [{\"text\": \"phrase here\", \"start\": 0.0, \"end\": 3.5, \"speaker\": \"Speaker 1\"}]}"
+                        )
+
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=[uploaded_audio, prompt],
+                        config={
+                            "response_mime_type": "application/json"
+                        }
+                    )
+                    raw_text = response.text or "{}"
+
+                    # If word-level format returned
+                    if '"words"' in raw_text:
+                        try:
+                            data = json.loads(raw_text)
+                            if isinstance(data, dict) and "words" in data and len(data["words"]) > 0:
+                                for w in data["words"]:
+                                    w["word"] = devanagari_to_hinglish(w.get("word", ""))
+                                if "full_text" in data:
+                                    data["full_text"] = devanagari_to_hinglish(data["full_text"])
+                                logger.info(f"✅ Gemini API ({model_name}) successfully transcribed {len(data['words'])} words!")
+                                return data
+                        except Exception:
+                            # Parse with regex if truncated
+                            matches = re.findall(
+                                r'\{\s*"word"\s*:\s*"([^"]+)"\s*,\s*"start"\s*:\s*([0-9\.]+)\s*,\s*"end"\s*:\s*([0-9\.]+)',
+                                raw_text
+                            )
+                            if matches:
+                                words = [{"word": devanagari_to_hinglish(m[0]), "start": float(m[1]), "end": float(m[2]), "speaker": "Speaker"} for m in matches]
+                                logger.info(f"✅ Gemini API ({model_name}) parsed {len(words)} words via regex recovery!")
+                                return {"full_text": " ".join(w["word"] for w in words), "words": words}
+
+                    # If segment-level format returned (for long episodes)
+                    segments = []
+                    try:
+                        data = json.loads(raw_text)
+                        if isinstance(data, dict):
+                            segments = data.get("segments", [])
+                    except Exception:
+                        seg_matches = re.findall(
+                            r'\{\s*"text"\s*:\s*"([^"]+)"\s*,\s*"start"\s*:\s*([0-9\.]+)\s*,\s*"end"\s*:\s*([0-9\.]+)',
+                            raw_text
+                        )
+                        if seg_matches:
+                            segments = [{"text": m[0], "start": float(m[1]), "end": float(m[2])} for m in seg_matches]
+
+                    if segments:
+                        words = []
+                        full_text_parts = []
+                        for seg in segments:
+                            s_start = float(seg.get("start", 0.0))
+                            s_end = float(seg.get("end", s_start + 2.0))
+                            seg_text = devanagari_to_hinglish(seg.get("text", "")).strip()
+                            if not seg_text:
+                                continue
+                            full_text_parts.append(seg_text)
+                            seg_words = seg_text.split()
+                            if seg_words:
+                                dur_per_word = max(0.2, (s_end - s_start) / len(seg_words))
+                                for w_idx, sw in enumerate(seg_words):
+                                    w_start = s_start + (w_idx * dur_per_word)
+                                    w_end = min(s_end, w_start + dur_per_word)
+                                    words.append({
+                                        "word": sw,
+                                        "start": round(w_start, 2),
+                                        "end": round(w_end, 2),
+                                        "speaker": seg.get("speaker", "Speaker")
+                                    })
+                        if words:
+                            logger.info(f"✅ Gemini API ({model_name}) generated {len(words)} words from {len(segments)} segments across episode!")
+                            return {"full_text": " ".join(full_text_parts), "words": words}
+
+                except Exception as e:
+                    logger.warning(f"Gemini audio transcription with {model_name} failed: {e}")
 
         # 3. Emergency fallback if offline / API quota exceeded
         return cls._generate_pacing_transcript(video_duration)

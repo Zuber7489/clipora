@@ -336,7 +336,7 @@ export class ProcessingComponent implements OnInit, OnDestroy {
     this.api.getProject(this.projectId).subscribe({
       next: (proj) => {
         this.project.set(proj);
-        if (proj.status === 'completed' || proj.clips_count >= 5) {
+        if (proj.status === 'completed' || (proj.clips_count ?? 0) >= 5) {
           this.progress.set(100);
           this.currentStep.set('All 5 vertical clips rendered successfully!');
           clearInterval(this.pollInterval);

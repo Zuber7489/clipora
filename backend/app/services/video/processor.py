@@ -60,16 +60,19 @@ class VideoProcessor:
 
     @classmethod
     def extract_audio(cls, video_path: Path, output_audio_path: Path) -> Path:
-        """Extracts audio as a clean 16kHz 16-bit mono WAV file for Gemini transcription."""
+        """Extracts audio as a clean 16kHz mono audio file (MP3 or WAV) for Gemini transcription."""
         ffmpeg = cls.get_ffmpeg_path()
         output_audio_path.parent.mkdir(parents=True, exist_ok=True)
         
+        is_mp3 = output_audio_path.suffix.lower() == ".mp3"
+        acodec_args = ["-c:a", "libmp3lame", "-b:a", "64k"] if is_mp3 else ["-acodec", "pcm_s16le"]
+
         cmd = [
             ffmpeg,
             "-y",
             "-i", str(video_path),
             "-vn",
-            "-acodec", "pcm_s16le",
+            *acodec_args,
             "-ar", "16000",
             "-ac", "1",
             str(output_audio_path)
