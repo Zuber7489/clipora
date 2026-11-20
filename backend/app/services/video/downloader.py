@@ -125,7 +125,7 @@ class VideoUrlDownloader:
         output_template = str(output_path.with_suffix('')) + ".%(ext)s"
 
         ydl_opts = {
-            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
+            'format': 'bestvideo[height<=720][fps<=30][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best',
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
             'download_ranges': yt_dlp.utils.download_range_func(None, [(start_time, end_time)]),
@@ -159,7 +159,7 @@ class VideoUrlDownloader:
         output_template = str(project_dir / "%(id)s.%(ext)s")
 
         ydl_opts = {
-            'format': 'bestvideo[height<=1080][fps<=30]+bestaudio/bestvideo[height<=720]+bestaudio/best[height<=720]/best',
+            'format': 'bestvideo[height<=720][fps<=30][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best',
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
             'concurrent_fragment_downloads': 8,

@@ -4,6 +4,7 @@ import logging
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from google.genai import types
 from backend.app.core.config import settings
 from backend.app.services.gemini.client import GeminiClientWrapper
 from backend.app.services.subtitles.vtt_parser import VttSubtitleParser
@@ -48,31 +49,26 @@ class GeminiTranscriptionService:
                     pass
 
         # 2. Gemini Multimodal Audio Transcription
+        # If video is longer than 180s, skip heavy upfront full-video transcription.
+        # Clips are transcribed on-demand in parallel with inline audio (< 2s per clip).
+        if video_duration > 180:
+            logger.info(f"Video duration is {video_duration:.1f}s (> 180s): bypassing full-episode transcription to achieve instant processing. Clips will be transcribed on-demand.")
+            return {"words": [], "full_text": ""}
+
         client = GeminiClientWrapper.get_client()
         if client and audio_path.exists():
-            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.8-flash", "gemini-3.1-flash-lite"]:
+            for model_name in ["gemini-3.1-flash-lite", settings.GEMINI_TRANSCRIPTION_MODEL]:
                 try:
                     audio_mime = "audio/mp3" if audio_path.suffix.lower() == ".mp3" else "audio/wav"
                     uploaded_audio = GeminiClientWrapper.upload_and_wait(audio_path, mime_type=audio_mime)
-                    if video_duration <= 180:
-                        prompt = (
-                            "Listen carefully to this audio and transcribe all spoken dialogue with word-level timestamps. "
-                            "RULES:\n"
-                            "1. SCRIPT: Use natural Hinglish / English in Latin alphabet (e.g. 'bhai kya season', 'sam for balraj'). "
-                            "NEVER output Devanagari Hindi characters (no हिन्दी लिपि).\n"
-                            "2. Output format: Valid JSON object with this exact structure:\n"
-                            "{\"full_text\": \"...\", \"words\": [{\"word\": \"bhai\", \"start\": 0.0, \"end\": 0.4, \"speaker\": \"Speaker 1\"}]}"
-                        )
-                    else:
-                        prompt = (
-                            "Listen carefully to this entire audio episode. Transcribe the dialogue into sequential timestamped segments. "
-                            "RULES:\n"
-                            "1. SCRIPT: Use natural Hinglish / English in Latin alphabet (e.g. 'bhai kya game hai', 'mast scene tha'). "
-                            "NEVER output Devanagari Hindi characters (no हिन्दी लिपि).\n"
-                            "2. Segments: Group into short spoken phrases (5-15 words each) with exact start and end timestamps in seconds spanning 0s to end.\n"
-                            "3. Output format: Valid JSON object with this exact structure:\n"
-                            "{\"segments\": [{\"text\": \"phrase here\", \"start\": 0.0, \"end\": 3.5, \"speaker\": \"Speaker 1\"}]}"
-                        )
+                    prompt = (
+                        "Listen carefully to this audio and transcribe all spoken dialogue with word-level timestamps. "
+                        "RULES:\n"
+                        "1. SCRIPT: Use natural Hinglish / English in Latin alphabet (e.g. 'bhai kya season', 'sam for balraj'). "
+                        "NEVER output Devanagari Hindi characters (no हिन्दी लिपि).\n"
+                        "2. Output format: Valid JSON object with this exact structure:\n"
+                        "{\"full_text\": \"...\", \"words\": [{\"word\": \"bhai\", \"start\": 0.0, \"end\": 0.4, \"speaker\": \"Speaker 1\"}]}"
+                    )
 
                     response = client.models.generate_content(
                         model=model_name,
@@ -167,26 +163,29 @@ class GeminiTranscriptionService:
         if not client or not audio_path.exists():
             return fallback_words or []
 
-        temp_slice = StorageManager.get_temp_file_path(prefix="clip_transcribe_", extension=".wav")
+        temp_slice = StorageManager.get_temp_file_path(prefix="clip_transcribe_", extension=".mp3")
         try:
-            # Cut exact audio slice using ffmpeg
+            # Cut exact audio slice using ffmpeg as compact 64kbps MP3
             cmd = [
                 "ffmpeg", "-y",
                 "-ss", f"{start_time:.3f}",
                 "-to", f"{end_time:.3f}",
                 "-i", str(audio_path),
-                "-acodec", "pcm_s16le",
+                "-c:a", "libmp3lame",
+                "-b:a", "64k",
                 "-ar", "16000",
                 "-ac", "1",
                 str(temp_slice)
             ]
             subprocess.run(cmd, capture_output=True, check=True)
 
-            if not temp_slice.exists() or temp_slice.stat().st_size < 1000:
+            if not temp_slice.exists() or temp_slice.stat().st_size < 100:
                 return fallback_words or []
 
-            # Upload slice to Gemini
-            uploaded_audio = GeminiClientWrapper.upload_and_wait(temp_slice, mime_type="audio/wav")
+            # Direct inline audio payload — zero Files API polling, instant generation (<1.5s)
+            audio_bytes = temp_slice.read_bytes()
+            audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3")
+
             prompt = (
                 "Listen to this short podcast clip and transcribe EVERY spoken word with precise start and end timestamps. "
                 "RULES:\n"
@@ -197,11 +196,11 @@ class GeminiTranscriptionService:
                 "{\"words\": [{\"word\": \"bhai\", \"start\": 0.0, \"end\": 0.4, \"speaker\": \"Speaker 1\"}]}"
             )
 
-            for model_name in [settings.GEMINI_TRANSCRIPTION_MODEL, "gemini-3.1-flash-lite"]:
+            for model_name in ["gemini-3.1-flash-lite", settings.GEMINI_TRANSCRIPTION_MODEL]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
-                        contents=[uploaded_audio, prompt],
+                        contents=[audio_part, prompt],
                         config={"response_mime_type": "application/json"}
                     )
                     raw_text = response.text or "{}"
