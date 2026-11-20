@@ -29,20 +29,8 @@ def _detect_hw_encoder() -> str:
     except Exception:
         pass
 
-    # 2. Try Windows Media Foundation
-    try:
-        res_mf = subprocess.run(
-            [ffmpeg, "-y", "-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
-             "-c:v", "h264_mf", "-b:v", "1M", "-f", "null", "-"],
-            capture_output=True, text=True, timeout=5
-        )
-        if res_mf.returncode == 0:
-            logger.info("✅ h264_mf hardware encoder detected — utilizing Windows Hardware Acceleration")
-            return "h264_mf"
-    except Exception:
-        pass
-
-    logger.info("⚡ Using libx264 superfast software encoder")
+    # Note: h264_mf (Windows Media Foundation) in ffmpeg is unstable with complex multi-input filtergraphs
+    logger.info("⚡ Using libx264 superfast software encoder (optimal reliability & quality)")
     return "libx264"
 
 _HW_ENCODER = _detect_hw_encoder()
@@ -150,9 +138,86 @@ class VideoProcessor:
         # 1. Gaming Streamer Split Layout (Top: Facecam/Streamer, Bottom: Gameplay)
         if crop_mode == "streamer_split":
             use_filter_complex = True
+            try:
+                import cv2
+                source_path = Path(source_video)
+                meta = FFprobeService.probe_file(source_path)
+                src_w, src_h = meta["width"], meta["height"]
+                face_box = None
+                cap = cv2.VideoCapture(str(source_path))
+                if cap.isOpened():
+                    # Sample multiple timestamps to locate facecam accurately
+                    for s_off in [3.0, 7.0, 15.0, 25.0]:
+                        cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, start_time + s_off) * 1000.0)
+                        ret, test_frame = cap.read()
+                        if ret and test_frame is not None:
+                            h_quad = int(src_h * 0.5)
+                            w_quad = int(src_w * 0.5)
+                            # 1. Top-right quadrant probe (where ~90% of streamers place facecam)
+                            tr_quad = test_frame[0:h_quad, w_quad:src_w]
+                            reframer = FaceReframer.get_shared_instance()
+                            faces = reframer.detect_faces(tr_quad)
+                            if faces:
+                                fx, fy, fw, fh = faces[0]
+                                face_box = (w_quad + fx, fy, fw, fh)
+                                break
+                            # 2. Top-left quadrant probe
+                            tl_quad = test_frame[0:h_quad, 0:w_quad]
+                            faces = reframer.detect_faces(tl_quad)
+                            if faces:
+                                fx, fy, fw, fh = faces[0]
+                                face_box = (fx, fy, fw, fh)
+                                break
+                            # 3. Full frame probe
+                            faces = reframer.detect_faces(test_frame)
+                            if faces:
+                                face_box = faces[0]
+                                break
+                    cap.release()
+
+                if face_box:
+                    fx, fy, fw, fh = face_box
+                    if fx >= src_w * 0.45 and fy <= src_h * 0.45:
+                        # Top-right webcam: frame tightly inside the webcam boundary to avoid black borders
+                        crop_h = int(min(src_h * 0.28, max(210, fh * 2.5)))
+                        crop_w = int(crop_h * (1080.0 / 960.0))
+                        cx = int(src_w - crop_w - src_w * 0.015)
+                        cy = max(0, int(fy * 0.3))
+                    elif fx <= src_w * 0.35 and fy <= src_h * 0.45:
+                        # Top-left webcam
+                        crop_h = int(min(src_h * 0.28, max(210, fh * 2.5)))
+                        crop_w = int(crop_h * (1080.0 / 960.0))
+                        cx = int(src_w * 0.015)
+                        cy = max(0, int(fy * 0.3))
+                    else:
+                        # Center / full screen face
+                        crop_h = int(min(src_h, max(220, fh * 2.5)))
+                        crop_w = int(crop_h * (1080.0 / 960.0))
+                        face_cx = fx + fw // 2
+                        face_cy = fy + fh // 2
+                        cx = int(face_cx - crop_w // 2)
+                        cy = max(0, int(face_cy - crop_h * 0.38))
+                    cx = max(0, min(src_w - crop_w, cx))
+                    cy = max(0, min(src_h - crop_h, cy))
+                    top_crop = f"crop={crop_w}:{crop_h}:{cx}:{cy}"
+                else:
+                    # Streamer webcam fallback: tight top-right webcam box (no black borders)
+                    crop_w = int(src_w * 0.15)
+                    crop_h = int(crop_w / (1080.0 / 960.0))
+                    cx = int(src_w - crop_w - src_w * 0.015)
+                    cy = int(src_h * 0.015)
+                    top_crop = f"crop={crop_w}:{crop_h}:{cx}:{cy}"
+            except Exception as e:
+                logger.warning(f"Facecam detection fallback: {e}")
+                crop_w = int(src_w * 0.15) if 'src_w' in locals() else 290
+                crop_h = int(crop_w / (1080.0 / 960.0))
+                cx = int(src_w - crop_w - src_w * 0.015) if 'src_w' in locals() else 1600
+                cy = int(src_h * 0.015) if 'src_h' in locals() else 15
+                top_crop = f"crop={crop_w}:{crop_h}:{cx}:{cy}"
+
             vf = (
                 f"[0:v]split=2[spk][game];"
-                f"[spk]crop=w=min(in_w\\,in_h*1.125):h=in_h:x=(in_w-out_w)/2:y=0,scale=1080:960[top];"
+                f"[spk]{top_crop},scale=1080:960:flags=lanczos[top];"
                 f"[game]scale=1080:960:force_original_aspect_ratio=decrease,pad=1080:960:(ow-iw)/2:(oh-ih)/2:color=0x09090b[bottom];"
                 f"[top][bottom]vstack=inputs=2[stacked];"
                 f"[stacked]drawbox=y=958:h=4:color=0x27272a@1.0:t=fill,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
@@ -170,14 +235,14 @@ class VideoProcessor:
                     author_handle=author_handle or "clipora_live",
                     output_path=overlay_path
                 )
-                extra_inputs = ["-i", str(overlay_file)]
+                extra_inputs = ["-loop", "1", "-i", str(overlay_file)]
                 vw, vh = coords["w"], coords["h"]
                 vx, vy = coords["x"], coords["y"]
                 vf = (
                     f"[0:v]scale={vw}:{vh}:force_original_aspect_ratio=increase,crop={vw}:{vh}[vid];"
                     f"color=c=0x09090b:s=1080x1920:d={clip_duration:.3f}[bg];"
                     f"[bg][vid]overlay={vx}:{vy}[bg_vid];"
-                    f"[bg_vid][1:v]overlay=0:0,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
+                    f"[bg_vid][1:v]overlay=0:0:shortest=1,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
                 )
             except Exception as e:
                 logger.warning(f"Twitter post template failed: {e}. Falling back to smart_blur.")
@@ -267,8 +332,6 @@ class VideoProcessor:
 
         if _HW_ENCODER == "h264_qsv":
             enc_args = ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "23"]
-        elif _HW_ENCODER == "h264_mf":
-            enc_args = ["-c:v", "h264_mf", "-b:v", "6M"]
         else:
             enc_args = ["-c:v", "libx264", "-preset", "superfast", "-crf", "21"]
 
@@ -292,12 +355,20 @@ class VideoProcessor:
                 "-ss", f"{start_time:.3f}",
                 "-to", f"{end_time:.3f}",
                 "-i", str(source_video),
-                "-vf", f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black{sub_filter}",
+            ]
+            if extra_inputs:
+                cmd_fallback.extend(extra_inputs)
+            if use_filter_complex:
+                cmd_fallback.extend(["-filter_complex", vf, "-map", "[v_out]", "-map", "0:a?"])
+            else:
+                cmd_fallback.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
+            cmd_fallback.extend([
                 "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-pix_fmt", "yuv420p",
                 "-af", "dynaudnorm=p=0.9:m=10.0",
                 "-c:a", "aac", "-b:a", "192k",
+                "-movflags", "+faststart",
                 str(output_video_path)
-            ]
+            ])
             subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
 
         return FFprobeService.probe_file(output_video_path)

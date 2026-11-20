@@ -83,7 +83,7 @@ import { ApiService } from '../../core/services/api.service';
                   <div class="video-details">
                     <span>Channel: <strong>{{ urlInfo()?.uploader }}</strong></span>
                     <span>Duration: <strong class="tabular-nums">{{ formatDuration(urlInfo()?.duration || 0) }}</strong></span>
-                    <span class="pill-output">5 vertical clips</span>
+                    <span class="pill-output">{{ targetClips }} vertical clips</span>
                   </div>
                 </div>
               </div>
@@ -97,6 +97,37 @@ import { ApiService } from '../../core/services/api.service';
                   [(ngModel)]="projectTitle" 
                   placeholder="Leave empty to use video title" 
                   class="input-enterprise">
+              </div>
+            </div>
+
+            <!-- Number of Clips Selection -->
+            <div class="form-row" style="margin-top: 20px;">
+              <div class="form-col">
+                <div class="field-label-row">
+                  <label class="field-label">Number of Viral Clips</label>
+                  <span class="field-hint">Select how many AI clips to extract</span>
+                </div>
+                <div class="clip-count-group">
+                  @for (cnt of [1, 2, 3, 5, 10, 15, 20]; track cnt) {
+                    <button 
+                      type="button" 
+                      class="count-chip" 
+                      [class.active]="targetClips === cnt" 
+                      (click)="targetClips = cnt">
+                      {{ cnt }} {{ cnt === 1 ? 'Clip' : 'Clips' }}
+                    </button>
+                  }
+                  <div class="custom-count-wrapper">
+                    <span class="custom-prefix">Custom:</span>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="50" 
+                      [(ngModel)]="targetClips" 
+                      class="custom-count-input"
+                      placeholder="5">
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -120,7 +151,7 @@ import { ApiService } from '../../core/services/api.service';
                 @if (isImporting()) {
                   <span class="spinner-clean"></span> Starting Ingestion Pipeline...
                 } @else {
-                  Generate 5 Vertical Clips
+                  Generate {{ targetClips }} Vertical Clips
                 }
               </button>
             </div>
@@ -178,6 +209,37 @@ import { ApiService } from '../../core/services/api.service';
                 </div>
               </div>
 
+              <!-- Number of Clips Selection (Upload mode) -->
+              <div class="form-row" style="margin-top: 20px;">
+                <div class="form-col">
+                  <div class="field-label-row">
+                    <label class="field-label">Number of Viral Clips</label>
+                    <span class="field-hint">Select how many AI clips to extract</span>
+                  </div>
+                  <div class="clip-count-group">
+                    @for (cnt of [1, 2, 3, 5, 10, 15, 20]; track cnt) {
+                      <button 
+                        type="button" 
+                        class="count-chip" 
+                        [class.active]="targetClips === cnt" 
+                        (click)="targetClips = cnt">
+                        {{ cnt }} {{ cnt === 1 ? 'Clip' : 'Clips' }}
+                      </button>
+                    }
+                    <div class="custom-count-wrapper">
+                      <span class="custom-prefix">Custom:</span>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="50" 
+                        [(ngModel)]="targetClips" 
+                        class="custom-count-input"
+                        placeholder="5">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               @if (isUploading()) {
                 <div class="upload-progress-box">
                   <div class="progress-bar-bg">
@@ -207,7 +269,7 @@ import { ApiService } from '../../core/services/api.service';
                   @if (isUploading()) {
                     <span class="spinner-clean"></span> Uploading & Processing...
                   } @else {
-                    Upload & Generate 5 Clips
+                    Upload & Generate {{ targetClips }} Clips
                   }
                 </button>
               </div>
@@ -439,6 +501,75 @@ import { ApiService } from '../../core/services/api.service';
       margin-top: 16px;
     }
 
+    .field-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .field-hint {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .clip-count-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .count-chip {
+      padding: 7px 14px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .count-chip:hover {
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+    }
+
+    .count-chip.active {
+      background-color: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .custom-count-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+    }
+
+    .custom-prefix {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .custom-count-input {
+      width: 52px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      text-align: center;
+      outline: none;
+    }
+
     .action-footer {
       margin-top: 28px;
       padding-top: 20px;
@@ -459,6 +590,9 @@ export class CreateClipsComponent {
   isDragging = signal<boolean>(false);
   isUploading = signal<boolean>(false);
   uploadProgress = signal<number>(0);
+
+  // Target viral clips count (default 5, configurable 1 to 50)
+  targetClips = 5;
 
   // YouTube State
   youtubeUrl = '';
@@ -528,7 +662,8 @@ export class CreateClipsComponent {
     this.isImporting.set(true);
     this.errorMessage.set(null);
 
-    this.api.importUrl(this.youtubeUrl.trim(), this.projectTitle, true).subscribe({
+    const clipsCount = Math.max(1, Math.min(50, this.targetClips || 5));
+    this.api.importUrl(this.youtubeUrl.trim(), this.projectTitle, true, clipsCount).subscribe({
       next: (project) => {
         if (project && project.id) {
           this.router.navigate(['/projects', project.id, 'processing']);
@@ -549,7 +684,8 @@ export class CreateClipsComponent {
     this.uploadProgress.set(5);
     this.errorMessage.set(null);
 
-    this.api.uploadVideoWithProgress(file, this.projectTitle, true).subscribe({
+    const clipsCount = Math.max(1, Math.min(50, this.targetClips || 5));
+    this.api.uploadVideoWithProgress(file, this.projectTitle, true, clipsCount).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           const progress = Math.round((100 * event.loaded) / event.total);

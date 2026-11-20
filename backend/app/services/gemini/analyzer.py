@@ -28,7 +28,8 @@ KEY VIRAL CRITERIA:
         video_path: Path,
         duration: float,
         transcript_data: Dict[str, Any],
-        audio_path: Optional[Path] = None
+        audio_path: Optional[Path] = None,
+        target_count: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Submits audio or structured transcript to Gemini for structured moment extraction across the entire video.
@@ -37,8 +38,10 @@ KEY VIRAL CRITERIA:
         client = GeminiClientWrapper.get_client()
         candidates: List[Dict[str, Any]] = []
 
+        target_min = max(target_count + 3, 8)
+        target_max = max(target_count * 2, 15)
+
         if client:
-            # 5 timeline partition checkpoints to enforce coverage across the entire episode
             dur_mins = duration / 60.0
             p1 = round(duration * 0.20, 1)
             p2 = round(duration * 0.40, 1)
@@ -57,7 +60,7 @@ KEY VIRAL CRITERIA:
             if uploaded_media:
                 prompt_content = f"""
 Listen carefully to this entire episode audio (total duration: {duration:.1f} seconds / {dur_mins:.1f} minutes).
-Your mission is to extract 8 to 15 of the absolute BEST, most viral, funniest, or most shocking standalone clip moments across the ENTIRE duration.
+Your mission is to extract {target_min} to {target_max} of the absolute BEST, most viral, funniest, or most shocking standalone clip moments across the ENTIRE duration.
 
 CRITICAL TIMELINE COVERAGE MANDATE (MUST DISTRIBUTE ACROSS ENTIRE EPISODE):
 Do NOT pick moments only from the first few minutes! You MUST search through and distribute candidate moments across all 5 zones of the video:
@@ -158,29 +161,34 @@ Provide exact start_time and end_time (in seconds) and punchy viral titles with 
                                 "ending_score": item.get("ending_score", 85),
                             })
 
-                    if len(candidates) >= 5:
+                    if len(candidates) >= target_count:
                         logger.info(f"Gemini {model_name} extracted {len(candidates)} genuine viral moments across the timeline.")
                         return candidates
                 except Exception as e:
                     logger.warning(f"Gemini model {model_name} moment extraction failed: {e}")
 
-        if len(candidates) < 5:
-            candidates = cls._generate_content_driven_candidates(duration, transcript_data)
+        if len(candidates) < target_count:
+            candidates = cls._generate_content_driven_candidates(duration, transcript_data, target_count=target_count)
 
         return candidates
 
     @classmethod
-    def _generate_content_driven_candidates(cls, duration: float, transcript_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _generate_content_driven_candidates(
+        cls,
+        duration: float,
+        transcript_data: Dict[str, Any],
+        target_count: int = 5
+    ) -> List[Dict[str, Any]]:
         """
-        Extracts 5 genuine segment intervals from the actual spoken words of the episode.
+        Extracts genuine segment intervals from the actual spoken words of the episode.
         Uses real speech timestamps rather than canned English titles.
         """
         candidates = []
         words = transcript_data.get("words", [])
-        clip_target_duration = min(45.0, max(20.0, duration / 6.0))
-        interval_step = (duration - clip_target_duration) / 5.0
+        clip_target_duration = min(45.0, max(20.0, duration / float(target_count + 1)))
+        interval_step = max(5.0, (duration - clip_target_duration) / float(max(1, target_count)))
 
-        for i in range(5):
+        for i in range(target_count):
             start = round(max(0.0, i * interval_step + 10.0), 2)
             end = round(min(duration, start + clip_target_duration), 2)
             

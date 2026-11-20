@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -165,7 +165,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
               <div class="modal-section">
                 <label class="section-label">1. Video Layout Template</label>
                 <div class="template-grid">
-                  <label class="template-card" [class.selected]="selectedCropMode === 'streamer_split'">
+                  <label class="template-card" [class.selected]="selectedCropMode === 'streamer_split'" (click)="selectedCropMode = 'streamer_split'">
                     <input type="radio" name="cropMode" value="streamer_split" [(ngModel)]="selectedCropMode">
                     <div class="template-mini split-mini">
                       <div class="mini-top">Streamer</div>
@@ -178,7 +178,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                     </div>
                   </label>
 
-                  <label class="template-card" [class.selected]="selectedCropMode === 'twitter_post'">
+                  <label class="template-card" [class.selected]="selectedCropMode === 'twitter_post'" (click)="selectedCropMode = 'twitter_post'">
                     <input type="radio" name="cropMode" value="twitter_post" [(ngModel)]="selectedCropMode">
                     <div class="template-mini twitter-mini">
                       <div class="mini-tw-bar">
@@ -193,7 +193,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                     </div>
                   </label>
 
-                  <label class="template-card" [class.selected]="selectedCropMode === 'smart_blur'">
+                  <label class="template-card" [class.selected]="selectedCropMode === 'smart_blur'" (click)="selectedCropMode = 'smart_blur'">
                     <input type="radio" name="cropMode" value="smart_blur" [(ngModel)]="selectedCropMode">
                     <div class="template-mini blur-mini">
                       <div class="mini-blur-bg"></div>
@@ -205,7 +205,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                     </div>
                   </label>
 
-                  <label class="template-card" [class.selected]="selectedCropMode === 'center_crop'">
+                  <label class="template-card" [class.selected]="selectedCropMode === 'center_crop'" (click)="selectedCropMode = 'center_crop'">
                     <input type="radio" name="cropMode" value="center_crop" [(ngModel)]="selectedCropMode">
                     <div class="template-mini focus-mini">
                       <div class="mini-focus">9:16 Full</div>
@@ -222,7 +222,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
               <div class="modal-section" style="margin-top: 20px;">
                 <label class="section-label">2. Burned Karaoke Subtitles</label>
                 <div class="style-cards">
-                  <label class="style-card" [class.selected]="selectedStyle === 'bold_viral'">
+                  <label class="style-card" [class.selected]="selectedStyle === 'bold_viral'" (click)="selectedStyle = 'bold_viral'">
                     <input type="radio" name="subtitleStyle" value="bold_viral" [(ngModel)]="selectedStyle">
                     <div class="style-details">
                       <span class="name">Bold Viral (Recommended)</span>
@@ -230,7 +230,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                     </div>
                   </label>
 
-                  <label class="style-card" [class.selected]="selectedStyle === 'clean_minimal'">
+                  <label class="style-card" [class.selected]="selectedStyle === 'clean_minimal'" (click)="selectedStyle = 'clean_minimal'">
                     <input type="radio" name="subtitleStyle" value="clean_minimal" [(ngModel)]="selectedStyle">
                     <div class="style-details">
                       <span class="name">Clean Minimal</span>
@@ -238,7 +238,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                     </div>
                   </label>
 
-                  <label class="style-card" [class.selected]="selectedStyle === 'podcast_pro'">
+                  <label class="style-card" [class.selected]="selectedStyle === 'podcast_pro'" (click)="selectedStyle = 'podcast_pro'">
                     <input type="radio" name="subtitleStyle" value="podcast_pro" [(ngModel)]="selectedStyle">
                     <div class="style-details">
                       <span class="name">Podcast Professional</span>
@@ -767,6 +767,8 @@ export class ProjectResultsComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private api = inject(ApiService);
 
+  @ViewChild('videoPlayer') videoPlayerRef?: ElementRef<HTMLVideoElement>;
+
   projectId = '';
   project = signal<Project | null>(null);
   clips = signal<GeneratedClip[]>([]);
@@ -810,7 +812,7 @@ export class ProjectResultsComponent implements OnInit {
   openStyleModal(clip: GeneratedClip): void {
     this.activeModalClip.set(clip);
     this.selectedStyle = clip.subtitle_style || 'bold_viral';
-    this.selectedCropMode = clip.crop_mode || clip.aspect_ratio || 'streamer_split';
+    this.selectedCropMode = clip.crop_mode || (clip.aspect_ratio && clip.aspect_ratio !== '9:16' ? clip.aspect_ratio : 'streamer_split');
   }
 
   closeStyleModal(): void {
@@ -829,14 +831,24 @@ export class ProjectResultsComponent implements OnInit {
       next: (updatedClip) => {
         this.isReRendering.set(false);
         this.closeStyleModal();
+        const cleanBaseUrl = updatedClip.video_url.split('?')[0];
         const cacheBusted: GeneratedClip = {
           ...updatedClip,
-          video_url: `${updatedClip.video_url}?t=${Date.now()}`
+          crop_mode: this.selectedCropMode,
+          aspect_ratio: this.selectedCropMode,
+          video_url: `${cleanBaseUrl}?t=${Date.now()}`,
+          thumbnail_url: updatedClip.thumbnail_url ? `${updatedClip.thumbnail_url.split('?')[0]}?t=${Date.now()}` : undefined
         };
         this.clips.update(list => list.map(c => c.id === clip.id ? cacheBusted : c));
         if (this.activeClip()?.id === clip.id) {
           this.activeClip.set(cacheBusted);
         }
+        setTimeout(() => {
+          if (this.videoPlayerRef?.nativeElement) {
+            this.videoPlayerRef.nativeElement.load();
+            this.videoPlayerRef.nativeElement.play().catch(() => {});
+          }
+        }, 80);
       },
       error: () => {
         this.isReRendering.set(false);

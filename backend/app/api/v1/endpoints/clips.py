@@ -121,10 +121,18 @@ async def stream_clip(clip_id: str, request: Request, db: AsyncSession = Depends
             "Accept-Ranges": "bytes",
             "Content-Length": str(length),
             "Content-Type": "video/mp4",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
         }
         return StreamingResponse(iter_chunk(), status_code=206, headers=headers)
     
-    return FileResponse(path, media_type="video/mp4", filename=f"{clip.title}.mp4")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename=f"{clip.title}.mp4",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 @router.get("/{clip_id}/thumbnail")
 async def get_clip_thumbnail(clip_id: str, db: AsyncSession = Depends(get_db)):
@@ -133,7 +141,11 @@ async def get_clip_thumbnail(clip_id: str, db: AsyncSession = Depends(get_db)):
     clip = result.scalar_one_or_none()
     if not clip or not clip.thumbnail_path or not Path(clip.thumbnail_path).exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not found.")
-    return FileResponse(Path(clip.thumbnail_path), media_type="image/jpeg")
+    return FileResponse(
+        Path(clip.thumbnail_path),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 @router.get("/{clip_id}/download")
 async def download_clip(clip_id: str, db: AsyncSession = Depends(get_db)):
@@ -215,6 +227,16 @@ async def re_render_clip(
         author_handle="clipora_live"
     )
 
+    # CRITICAL: Update video_path and re-generate thumbnail for new rendered layout
+    clip.video_path = str(out_mp4)
+    thumb_path = StorageManager.get_clip_thumbnail_path(clip.project_id, clip.id)
+    await asyncio.to_thread(
+        VideoProcessor.extract_thumbnail,
+        video_path=out_mp4,
+        timestamp=min(1.0, max(0.5, (end_time - start_time) * 0.1)),
+        output_image_path=thumb_path
+    )
+    clip.thumbnail_path = str(thumb_path)
     clip.start_time = start_time
     clip.end_time = end_time
     clip.duration = render_meta.get("duration", end_time - start_time)

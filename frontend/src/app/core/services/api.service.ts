@@ -26,10 +26,11 @@ export class ApiService {
     return this.http.get<Project>(`${this.baseUrl}/projects/${id}`);
   }
 
-  uploadVideoWithProgress(file: File, title: string, autoGenerate: boolean = true): Observable<HttpEvent<Project>> {
+  uploadVideoWithProgress(file: File, title: string, autoGenerate: boolean = true, numClips: number = 5): Observable<HttpEvent<Project>> {
     const formData = new FormData();
     formData.append('file', file);
     if (title) formData.append('title', title);
+    formData.append('num_clips', String(numClips));
     formData.append('auto_generate', String(autoGenerate));
 
     const req = new HttpRequest('POST', `${this.baseUrl}/projects/upload`, formData, {
@@ -42,16 +43,19 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/projects/inspect-url`, { url });
   }
 
-  importUrl(url: string, title?: string, autoGenerate: boolean = true): Observable<Project> {
+  importUrl(url: string, title?: string, autoGenerate: boolean = true, numClips: number = 5): Observable<Project> {
     return this.http.post<Project>(`${this.baseUrl}/projects/import-url`, {
       url,
       title: title || undefined,
+      num_clips: numClips,
       auto_generate: autoGenerate
     });
   }
 
-  generateClips(projectId: string): Observable<ProcessingJob> {
-    return this.http.post<ProcessingJob>(`${this.baseUrl}/projects/${projectId}/generate`, {});
+  generateClips(projectId: string, numClips: number = 5): Observable<ProcessingJob> {
+    return this.http.post<ProcessingJob>(`${this.baseUrl}/projects/${projectId}/generate`, {
+      num_clips: numClips
+    });
   }
 
   getJob(jobId: string): Observable<ProcessingJob> {

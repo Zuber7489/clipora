@@ -18,6 +18,7 @@ class FFprobeService:
     @classmethod
     def probe_file(cls, file_path: Path) -> Dict[str, Any]:
         """Inspects media file and returns structured video and audio metadata."""
+        file_path = Path(file_path)
         if not file_path.exists():
             raise MediaProbeError(f"File not found: {file_path}")
 
