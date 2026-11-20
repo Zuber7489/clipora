@@ -60,6 +60,7 @@ class GeneratedClipResponse(BaseModel):
     thumbnail_url: Optional[str] = None
     subtitle_style: str
     aspect_ratio: str
+    crop_mode: Optional[str] = "smart_blur"
     resolution: str
     file_size_bytes: int
     render_status: str

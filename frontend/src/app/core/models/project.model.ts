@@ -25,8 +25,9 @@ export interface GeneratedClip {
   duration: number;
   video_url: string;
   thumbnail_url?: string;
-  subtitle_style: 'bold_viral' | 'clean_minimal' | 'podcast_pro';
+  subtitle_style: 'bold_viral' | 'clean_minimal' | 'podcast_pro' | string;
   aspect_ratio: string;
+  crop_mode?: string;
   resolution: string;
   file_size_bytes: number;
   render_status: 'pending' | 'rendering' | 'completed' | 'failed';

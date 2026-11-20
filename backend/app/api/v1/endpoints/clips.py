@@ -1,4 +1,6 @@
 import os
+import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
@@ -33,7 +35,8 @@ def _to_clip_response(clip: GeneratedClip, base_url: str = "/api/v1/clips") -> d
         "video_url": f"{base_url}/{clip.id}/stream",
         "thumbnail_url": f"{base_url}/{clip.id}/thumbnail" if clip.thumbnail_path else None,
         "subtitle_style": clip.subtitle_style,
-        "aspect_ratio": clip.aspect_ratio,
+        "aspect_ratio": clip.aspect_ratio or "9:16",
+        "crop_mode": clip.aspect_ratio or "smart_blur",
         "resolution": clip.resolution,
         "file_size_bytes": clip.file_size_bytes,
         "render_status": clip.render_status,
@@ -161,7 +164,7 @@ async def re_render_clip(
     req: RenderClipRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Re-renders a clip with modified subtitle style or timing adjustments."""
+    """Re-renders a clip with modified template layout, subtitle style, or timing."""
     result = await db.execute(select(GeneratedClip).where(GeneratedClip.id == clip_id))
     clip = result.scalar_one_or_none()
     if not clip:
@@ -169,18 +172,27 @@ async def re_render_clip(
 
     proj_res = await db.execute(select(Project).where(Project.id == clip.project_id))
     project = proj_res.scalar_one_or_none()
-    if not project or not Path(project.file_path).exists():
+    
+    # Check source video file: first try project source, then try clip's existing video if needed
+    source_video_path = None
+    if project and project.file_path and Path(project.file_path).exists():
+        source_video_path = Path(project.file_path)
+    elif clip.video_path and Path(clip.video_path).exists():
+        source_video_path = Path(clip.video_path)
+
+    if not source_video_path:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Original source video missing.")
 
     start_time = req.start_time if req.start_time is not None else clip.start_time
     end_time = req.end_time if req.end_time is not None else clip.end_time
-    subtitle_style = req.subtitle_style or clip.subtitle_style
-    crop_mode = req.crop_mode or "smart_blur"
+    subtitle_style = req.subtitle_style or clip.subtitle_style or "bold_viral"
+    crop_mode = req.crop_mode or clip.aspect_ratio or "smart_blur"
 
     # Re-generate subtitles
-    transcript_words = project.transcript_data.get("words", []) if project.transcript_data else []
+    transcript_words = project.transcript_data.get("words", []) if (project and project.transcript_data) else []
     sub_path = StorageManager.get_temp_file_path(prefix=f"sub_rerender_{clip.id}", extension=".ass")
-    SubtitleGenerator.generate_ass(
+    await asyncio.to_thread(
+        SubtitleGenerator.generate_ass,
         words=transcript_words,
         output_path=sub_path,
         style_name=subtitle_style,
@@ -189,20 +201,25 @@ async def re_render_clip(
         headline_hook=clip.title
     )
 
-    out_mp4 = StorageManager.get_clip_render_path(project.id, clip.id)
-    render_meta = VideoProcessor.render_vertical_clip(
-        source_video=Path(project.file_path),
+    out_mp4 = StorageManager.get_clip_render_path(clip.project_id, clip.id)
+    render_meta = await asyncio.to_thread(
+        VideoProcessor.render_vertical_clip,
+        source_video=source_video_path,
         start_time=start_time,
         end_time=end_time,
         output_video_path=out_mp4,
         subtitle_ass_path=sub_path,
-        crop_mode=crop_mode
+        crop_mode=crop_mode,
+        clip_title=clip.title,
+        author_name=project.title if project else "Stream Highlights",
+        author_handle="clipora_live"
     )
 
     clip.start_time = start_time
     clip.end_time = end_time
     clip.duration = render_meta.get("duration", end_time - start_time)
     clip.subtitle_style = subtitle_style
+    clip.aspect_ratio = crop_mode
     clip.file_size_bytes = render_meta.get("size_bytes", 0)
     clip.render_status = "completed"
     await db.commit()

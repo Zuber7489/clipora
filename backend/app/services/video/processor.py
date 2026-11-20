@@ -117,12 +117,15 @@ class VideoProcessor:
         end_time: float,
         output_video_path: Path,
         subtitle_ass_path: Optional[Path] = None,
-        crop_mode: str = "smart_blur"
+        crop_mode: str = "smart_blur",
+        clip_title: str = "",
+        author_name: str = "Stream Highlights",
+        author_handle: str = "clipora_live"
     ) -> Dict[str, Any]:
         """
         Renders a 1080x1920 9:16 vertical video clip with accurate cut,
         smart vertical reframing, burned styled subtitles, and loudness normalization.
-        Supports crop_mode: "split_stacked", "face_tracking", "smart_blur", "center_crop".
+        Supports crop_mode: "streamer_split", "twitter_post", "smart_blur", "center_crop", "split_stacked".
         """
         ffmpeg = cls.get_ffmpeg_path()
         output_video_path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,9 +145,46 @@ class VideoProcessor:
 
         use_filter_complex = False
         color_grade = "eq=contrast=1.06:brightness=0.01:saturation=1.12"
+        extra_inputs: List[str] = []
 
-        # Split Stacked Podcast Layout (1080x960 top, 1080x960 bottom, 4px divider)
-        if crop_mode == "split_stacked":
+        # 1. Gaming Streamer Split Layout (Top: Facecam/Streamer, Bottom: Gameplay)
+        if crop_mode == "streamer_split":
+            use_filter_complex = True
+            vf = (
+                f"[0:v]split=2[spk][game];"
+                f"[spk]crop=w=min(in_w\\,in_h*1.125):h=in_h:x=(in_w-out_w)/2:y=0,scale=1080:960[top];"
+                f"[game]scale=1080:960:force_original_aspect_ratio=decrease,pad=1080:960:(ow-iw)/2:(oh-ih)/2:color=0x09090b[bottom];"
+                f"[top][bottom]vstack=inputs=2[stacked];"
+                f"[stacked]drawbox=y=958:h=4:color=0x27272a@1.0:t=fill,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
+            )
+
+        # 2. Twitter / X Viral Post Layout (Dark card with author header, hook text & framed video)
+        elif crop_mode == "twitter_post":
+            use_filter_complex = True
+            try:
+                from backend.app.services.video.twitter_template import TwitterTemplateService
+                overlay_path = output_video_path.parent / f"tw_{output_video_path.stem}.png"
+                overlay_file, coords = TwitterTemplateService.generate_overlay(
+                    clip_title=clip_title or "Wait until you see how this ended... 💀",
+                    author_name=author_name or "Stream Highlights",
+                    author_handle=author_handle or "clipora_live",
+                    output_path=overlay_path
+                )
+                extra_inputs = ["-i", str(overlay_file)]
+                vw, vh = coords["w"], coords["h"]
+                vx, vy = coords["x"], coords["y"]
+                vf = (
+                    f"[0:v]scale={vw}:{vh}:force_original_aspect_ratio=increase,crop={vw}:{vh}[vid];"
+                    f"color=c=0x09090b:s=1080x1920:d={clip_duration:.3f}[bg];"
+                    f"[bg][vid]overlay={vx}:{vy}[bg_vid];"
+                    f"[bg_vid][1:v]overlay=0:0,{color_grade},fps={settings.OUTPUT_FPS}{sub_filter}[v_out]"
+                )
+            except Exception as e:
+                logger.warning(f"Twitter post template failed: {e}. Falling back to smart_blur.")
+                crop_mode = "smart_blur"
+
+        # 3. Split Stacked Podcast Layout (1080x960 top speaker, 1080x960 bottom speaker, 4px divider)
+        elif crop_mode == "split_stacked":
             use_filter_complex = True
             try:
                 meta = FFprobeService.probe_file(source_video)
@@ -174,7 +214,7 @@ class VideoProcessor:
                 logger.warning(f"split_stacked rendering failed: {e}. Falling back to smart_blur.")
                 crop_mode = "smart_blur"
 
-        if crop_mode == "face_tracking":
+        elif crop_mode == "face_tracking":
             try:
                 meta = FFprobeService.probe_file(source_video)
                 src_w = meta["width"]
@@ -211,6 +251,8 @@ class VideoProcessor:
             "-to", f"{end_time:.3f}",
             "-i", str(source_video),
         ]
+        if extra_inputs:
+            cmd.extend(extra_inputs)
 
         if use_filter_complex:
             cmd.extend(["-filter_complex", vf, "-map", "[v_out]", "-map", "0:a?"])

@@ -12,6 +12,7 @@ from backend.app.models.entities import Project, ProcessingJob, ClipCandidate, G
 from backend.app.services.video.probe import FFprobeService
 from backend.app.services.video.processor import VideoProcessor
 from backend.app.services.video.downloader import VideoUrlDownloader
+from backend.app.services.video.heatmap import YouTubeHeatmapService
 from backend.app.services.subtitles.generator import SubtitleGenerator
 from backend.app.services.gemini.transcriber import GeminiTranscriptionService
 from backend.app.services.gemini.analyzer import GeminiVideoAnalyzer
@@ -54,8 +55,28 @@ class PipelineCoordinator:
                 if source_url or (project.file_path and project.file_path.startswith("http")) or not project.file_path:
                     target_url = source_url or project.original_filename
                     job.progress_percentage = 10
-                    job.current_step = "Ingesting high-speed stream from YouTube..."
+                    job.current_step = "Ingesting stream metadata & audience heatmap..."
                     await db.commit()
+
+                    # Instant Stream Heatmap Check: detect viral moments in <1s
+                    heatmap_candidates = None
+                    try:
+                        info = await asyncio.to_thread(VideoUrlDownloader.get_info, target_url)
+                        raw_duration = float(info.get("duration", 0.0))
+                        if raw_duration > 0:
+                            project.duration_seconds = raw_duration
+                            project.title = project.title or info.get("title", "Imported Stream")
+                            heatmap_candidates = await asyncio.to_thread(
+                                YouTubeHeatmapService.get_top_viral_segments,
+                                target_url,
+                                raw_duration,
+                                5
+                            )
+                            if heatmap_candidates:
+                                job.current_step = f"🚀 Instant Heatmap Engine active: 5 viral moments located across {raw_duration/3600:.1f}h stream!"
+                                await db.commit()
+                    except Exception as e:
+                        logger.warning(f"Heatmap pre-check skipped: {e}")
 
                     download_data = await asyncio.to_thread(VideoUrlDownloader.download_video, target_url, project.id)
                     video_path = Path(download_data["file_path"])
@@ -71,6 +92,7 @@ class PipelineCoordinator:
                 else:
                     video_path = Path(project.file_path)
                     subtitle_path = None
+                    heatmap_candidates = None
 
                 # Step 2: Probe media and extract audio (15%)
                 job.progress_percentage = 15
@@ -120,11 +142,14 @@ class PipelineCoordinator:
                 job.current_step = "Ranking viral candidates and optimizing boundary context"
                 await db.commit()
 
-                ranked_candidates = ClipRankingEngine.rank_and_select_top_clips(
-                    raw_candidates,
-                    target_count=5,
-                    video_duration=project.duration_seconds
-                )
+                if heatmap_candidates:
+                    ranked_candidates = heatmap_candidates[:5]
+                else:
+                    ranked_candidates = ClipRankingEngine.rank_and_select_top_clips(
+                        raw_candidates,
+                        target_count=5,
+                        video_duration=project.duration_seconds
+                    )
 
                 # Save candidates to database
                 db_candidates = []
@@ -204,7 +229,10 @@ class PipelineCoordinator:
                             end_time=c_model.end_time,
                             output_video_path=out_mp4,
                             subtitle_ass_path=sub_path,
-                            crop_mode="smart_blur"
+                            crop_mode="streamer_split",
+                            clip_title=c_model.title,
+                            author_name=project.title or "Stream Highlights",
+                            author_handle="clipora_live"
                         )
 
                         # 3. Extract crisp thumbnail
@@ -267,7 +295,7 @@ class PipelineCoordinator:
                         thumbnail_path=res["thumb_path"],
                         subtitle_path=res["sub_path"],
                         subtitle_style="bold_viral",
-                        aspect_ratio="9:16",
+                        aspect_ratio="streamer_split",
                         resolution="1080x1920",
                         file_size_bytes=render_meta.get("size_bytes", 0),
                         render_status="completed"

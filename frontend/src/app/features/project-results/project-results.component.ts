@@ -84,8 +84,13 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                 </a>
 
                 @if (activeClip()) {
-                  <button (click)="openStyleModal(activeClip()!)" class="btn btn-secondary btn-sm" title="Change Subtitle Style">
-                    Customize Style
+                  <button (click)="openStyleModal(activeClip()!)" class="btn btn-secondary btn-sm" title="Customize Layout Template and Subtitles">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="3" y1="9" x2="21" y2="9"></line>
+                      <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                    Templates & Style
                   </button>
                 }
               </div>
@@ -119,6 +124,7 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
                           {{ formatTimestamp(clip.start_time) }} - {{ formatTimestamp(clip.end_time) }}
                         </span>
                         <span class="meta-pill tabular-nums">{{ formatDuration(clip.duration) }}</span>
+                        <span class="meta-pill meta-template">{{ formatTemplateName(clip.crop_mode || clip.aspect_ratio) }}</span>
                         <span class="meta-pill">{{ formatStyleName(clip.subtitle_style) }}</span>
                         <span class="meta-pill meta-score">Viral 94%</span>
                       </div>
@@ -142,42 +148,104 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
         </div>
       }
 
-      <!-- Clean Style Customization Modal -->
+      <!-- Clean Layout & Style Customization Modal -->
       @if (activeModalClip()) {
         <div class="modal-backdrop" (click)="closeStyleModal()">
           <div class="modal-dialog card-enterprise" (click)="$event.stopPropagation()">
             <div class="modal-header">
-              <h3 class="modal-title">Customize Subtitle Preset</h3>
+              <div class="modal-title-box">
+                <h3 class="modal-title">Customize Template & Subtitles</h3>
+                <span class="modal-clip-name">{{ activeModalClip()?.title }}</span>
+              </div>
               <button (click)="closeStyleModal()" class="btn-close">&times;</button>
             </div>
 
-            <div class="modal-body">
-              <p class="modal-sub">Choose burned karaoke animation preset for <strong>{{ activeModalClip()?.title }}</strong>:</p>
+            <div class="modal-body-scroll">
+              <!-- Section 1: Social Layout Template -->
+              <div class="modal-section">
+                <label class="section-label">1. Video Layout Template</label>
+                <div class="template-grid">
+                  <label class="template-card" [class.selected]="selectedCropMode === 'streamer_split'">
+                    <input type="radio" name="cropMode" value="streamer_split" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini split-mini">
+                      <div class="mini-top">Streamer</div>
+                      <div class="mini-divider"></div>
+                      <div class="mini-bottom">Gameplay</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Streamer Split</span>
+                      <span class="t-desc">Top webcam, bottom gameplay stream (TikTok & Reels)</span>
+                    </div>
+                  </label>
 
-              <div class="style-cards">
-                <label class="style-card" [class.selected]="selectedStyle === 'bold_viral'">
-                  <input type="radio" name="subtitleStyle" value="bold_viral" [(ngModel)]="selectedStyle">
-                  <div class="style-details">
-                    <span class="name">Bold Viral (Recommended)</span>
-                    <span class="desc">Yellow animated word pop, heavy outline, maximum retention for TikTok/Reels</span>
-                  </div>
-                </label>
+                  <label class="template-card" [class.selected]="selectedCropMode === 'twitter_post'">
+                    <input type="radio" name="cropMode" value="twitter_post" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini twitter-mini">
+                      <div class="mini-tw-bar">
+                        <span class="tw-dot"></span>
+                        <span class="tw-badge">𝕏</span>
+                      </div>
+                      <div class="mini-tw-vid">Framed Video</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Twitter / X Post</span>
+                      <span class="t-desc">Dark card with avatar, verified badge & hook text</span>
+                    </div>
+                  </label>
 
-                <label class="style-card" [class.selected]="selectedStyle === 'clean_minimal'">
-                  <input type="radio" name="subtitleStyle" value="clean_minimal" [(ngModel)]="selectedStyle">
-                  <div class="style-details">
-                    <span class="name">Clean Minimal</span>
-                    <span class="desc">Crisp white typography with subtle translucent backing</span>
-                  </div>
-                </label>
+                  <label class="template-card" [class.selected]="selectedCropMode === 'smart_blur'">
+                    <input type="radio" name="cropMode" value="smart_blur" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini blur-mini">
+                      <div class="mini-blur-bg"></div>
+                      <div class="mini-sharp-fg">16:9</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Smart Blur</span>
+                      <span class="t-desc">9:16 blurred backdrop with sharp centered video</span>
+                    </div>
+                  </label>
 
-                <label class="style-card" [class.selected]="selectedStyle === 'podcast_pro'">
-                  <input type="radio" name="subtitleStyle" value="podcast_pro" [(ngModel)]="selectedStyle">
-                  <div class="style-details">
-                    <span class="name">Podcast Professional</span>
-                    <span class="desc">Mint green highlights, lower-third formatting for interviews</span>
-                  </div>
-                </label>
+                  <label class="template-card" [class.selected]="selectedCropMode === 'center_crop'">
+                    <input type="radio" name="cropMode" value="center_crop" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini focus-mini">
+                      <div class="mini-focus">9:16 Full</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Center Focus</span>
+                      <span class="t-desc">Minimalist 9:16 portrait crop</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Section 2: Subtitle Presets -->
+              <div class="modal-section" style="margin-top: 20px;">
+                <label class="section-label">2. Burned Karaoke Subtitles</label>
+                <div class="style-cards">
+                  <label class="style-card" [class.selected]="selectedStyle === 'bold_viral'">
+                    <input type="radio" name="subtitleStyle" value="bold_viral" [(ngModel)]="selectedStyle">
+                    <div class="style-details">
+                      <span class="name">Bold Viral (Recommended)</span>
+                      <span class="desc">Yellow animated word pop, heavy outline, maximum retention for TikTok/Reels</span>
+                    </div>
+                  </label>
+
+                  <label class="style-card" [class.selected]="selectedStyle === 'clean_minimal'">
+                    <input type="radio" name="subtitleStyle" value="clean_minimal" [(ngModel)]="selectedStyle">
+                    <div class="style-details">
+                      <span class="name">Clean Minimal</span>
+                      <span class="desc">Crisp white typography with subtle translucent backing</span>
+                    </div>
+                  </label>
+
+                  <label class="style-card" [class.selected]="selectedStyle === 'podcast_pro'">
+                    <input type="radio" name="subtitleStyle" value="podcast_pro" [(ngModel)]="selectedStyle">
+                    <div class="style-details">
+                      <span class="name">Podcast Professional</span>
+                      <span class="desc">Mint green highlights, lower-third formatting for interviews</span>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -185,9 +253,9 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
               <button (click)="closeStyleModal()" class="btn btn-secondary btn-sm">Cancel</button>
               <button (click)="reRenderActiveClip()" [disabled]="isReRendering()" class="btn btn-primary btn-sm">
                 @if (isReRendering()) {
-                  <span class="spinner-clean"></span> Rendering MP4...
+                  <span class="spinner-clean"></span> Rendering Clip...
                 } @else {
-                  Re-render Clip
+                  Apply & Re-render Clip
                 }
               </button>
             </div>
@@ -421,7 +489,10 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
 
     .modal-dialog {
       width: 100%;
-      max-width: 480px;
+      max-width: 620px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
       background-color: var(--bg-surface);
       padding: 24px;
     }
@@ -429,26 +500,218 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
     .modal-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-title-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
     .modal-title {
-      font-size: 1rem;
+      font-size: 1.05rem;
       font-weight: 600;
       color: var(--text-primary);
+    }
+
+    .modal-clip-name {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      max-width: 500px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .btn-close {
       font-size: 1.25rem;
       color: var(--text-tertiary);
+      cursor: pointer;
     }
     .btn-close:hover { color: var(--text-primary); }
 
-    .modal-sub {
-      font-size: 0.8125rem;
+    .modal-body-scroll {
+      overflow-y: auto;
+      max-height: calc(90vh - 150px);
+      padding-right: 6px;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
       color: var(--text-secondary);
-      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .template-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .template-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background-color: var(--bg-card);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .template-card input[type="radio"] { display: none; }
+    .template-card:hover { border-color: var(--border-hover); }
+    .template-card.selected {
+      border-color: var(--accent-blue);
+      background-color: rgba(37, 99, 235, 0.08);
+    }
+
+    .template-mini {
+      width: 100%;
+      height: 64px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .split-mini {
+      display: flex;
+      flex-direction: column;
+      background: #000;
+    }
+    .mini-top {
+      flex: 1;
+      background: #1e293b;
+      font-size: 8px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
+    .mini-divider {
+      height: 2px;
+      background: var(--accent-blue);
+    }
+    .mini-bottom {
+      flex: 1;
+      background: #09090b;
+      font-size: 8px;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
+
+    .twitter-mini {
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      gap: 4px;
+      background: #000;
+    }
+    .mini-tw-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tw-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #2563eb;
+    }
+    .tw-badge {
+      font-size: 9px;
+      color: #a1a1aa;
+      font-weight: bold;
+    }
+    .mini-tw-vid {
+      flex: 1;
+      background: #18181b;
+      border-radius: 4px;
+      font-size: 8px;
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .blur-mini {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    .mini-blur-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #1e1b4b, #09090b);
+      opacity: 0.7;
+    }
+    .mini-sharp-fg {
+      position: relative;
+      z-index: 1;
+      width: 80%;
+      height: 38px;
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      border-radius: 4px;
+      font-size: 8px;
+      color: #e4e4e7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .focus-mini {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    .mini-focus {
+      width: 44px;
+      height: 100%;
+      background: #18181b;
+      border-left: 1px solid var(--border-hover);
+      border-right: 1px solid var(--border-hover);
+      font-size: 8px;
+      color: #a1a1aa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .t-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .t-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .t-desc {
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+      line-height: 1.25;
+    }
+
+    .meta-template {
+      background-color: rgba(37, 99, 235, 0.12);
+      color: var(--accent-blue);
     }
 
     .style-cards {
@@ -468,8 +731,12 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
       background-color: var(--bg-card);
       transition: all 0.15s ease;
     }
+    .style-card input[type="radio"] { display: none; }
     .style-card:hover { border-color: var(--border-hover); }
-    .style-card.selected { border-color: var(--accent-blue); }
+    .style-card.selected {
+      border-color: var(--accent-blue);
+      background-color: rgba(37, 99, 235, 0.08);
+    }
 
     .style-details {
       display: flex;
@@ -490,8 +757,8 @@ import { Project, GeneratedClip } from '../../core/models/project.model';
       display: flex;
       justify-content: flex-end;
       gap: 8px;
-      margin-top: 24px;
-      padding-top: 16px;
+      margin-top: 16px;
+      padding-top: 14px;
       border-top: 1px solid var(--border-subtle);
     }
   `]
@@ -507,6 +774,7 @@ export class ProjectResultsComponent implements OnInit {
   loading = signal<boolean>(true);
 
   activeModalClip = signal<GeneratedClip | null>(null);
+  selectedCropMode = 'streamer_split';
   selectedStyle = 'bold_viral';
   isReRendering = signal<boolean>(false);
 
@@ -542,6 +810,7 @@ export class ProjectResultsComponent implements OnInit {
   openStyleModal(clip: GeneratedClip): void {
     this.activeModalClip.set(clip);
     this.selectedStyle = clip.subtitle_style || 'bold_viral';
+    this.selectedCropMode = clip.crop_mode || clip.aspect_ratio || 'streamer_split';
   }
 
   closeStyleModal(): void {
@@ -553,11 +822,21 @@ export class ProjectResultsComponent implements OnInit {
     if (!clip) return;
 
     this.isReRendering.set(true);
-    this.api.reRenderClip(clip.id, { subtitle_style: this.selectedStyle }).subscribe({
-      next: () => {
+    this.api.reRenderClip(clip.id, {
+      subtitle_style: this.selectedStyle,
+      crop_mode: this.selectedCropMode
+    }).subscribe({
+      next: (updatedClip) => {
         this.isReRendering.set(false);
         this.closeStyleModal();
-        this.loadProjectAndClips();
+        const cacheBusted: GeneratedClip = {
+          ...updatedClip,
+          video_url: `${updatedClip.video_url}?t=${Date.now()}`
+        };
+        this.clips.update(list => list.map(c => c.id === clip.id ? cacheBusted : c));
+        if (this.activeClip()?.id === clip.id) {
+          this.activeClip.set(cacheBusted);
+        }
       },
       error: () => {
         this.isReRendering.set(false);
@@ -592,6 +871,16 @@ export class ProjectResultsComponent implements OnInit {
       case 'clean_minimal': return 'Clean Minimal';
       case 'podcast_pro': return 'Podcast Pro';
       default: return 'Bold Viral';
+    }
+  }
+
+  formatTemplateName(mode: string | undefined): string {
+    switch (mode) {
+      case 'streamer_split': return 'Streamer Split';
+      case 'twitter_post': return 'Twitter / X';
+      case 'center_crop': return 'Center Focus';
+      case 'split_stacked': return 'Podcast Split';
+      default: return 'Smart Blur';
     }
   }
 }

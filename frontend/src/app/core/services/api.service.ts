@@ -70,7 +70,7 @@ export class ApiService {
     return this.http.get<GeneratedClip>(`${this.baseUrl}/clips/${clipId}`);
   }
 
-  reRenderClip(clipId: string, options: { subtitle_style: string; start_time?: number; end_time?: number }): Observable<GeneratedClip> {
+  reRenderClip(clipId: string, options: { subtitle_style?: string; crop_mode?: string; start_time?: number; end_time?: number }): Observable<GeneratedClip> {
     return this.http.post<GeneratedClip>(`${this.baseUrl}/clips/${clipId}/render`, options);
   }
 
