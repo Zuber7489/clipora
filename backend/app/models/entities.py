@@ -112,7 +112,7 @@ class ProcessingJob(Base):
     
     job_type: Mapped[str] = mapped_column(String(50), default="full_pipeline") # 'full_pipeline', 'render_clip', 'analyze'
     progress_percentage: Mapped[int] = mapped_column(Integer, default=0)
-    current_step: Mapped[str] = mapped_column(String(100), default="queued")
+    current_step: Mapped[str] = mapped_column(String(255), default="queued")
     status: Mapped[str] = mapped_column(String(50), default="queued") # 'queued', 'processing', 'completed', 'failed'
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
