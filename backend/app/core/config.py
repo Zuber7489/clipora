@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     
     # Processing Limits & Validation
     MAX_UPLOAD_SIZE_MB: int = 2048
-    MAX_VIDEO_DURATION_SECONDS: int = 7200
+    MAX_VIDEO_DURATION_SECONDS: int = 43200
     SUPPORTED_EXTENSIONS: List[str] = [".mp4", ".mov", ".mkv", ".webm", ".avi"]
     
     # Video Processing Defaults
