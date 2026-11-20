@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class ClipRankingEngine:
     WEIGHT_HOOK = 0.25
@@ -33,7 +33,8 @@ class ClipRankingEngine:
         cls,
         candidates: List[Dict[str, Any]],
         target_count: int = 5,
-        video_duration: float = 3600.0
+        video_duration: float = 3600.0,
+        target_duration: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Validates timestamps, calculates scores, and selects the top clips with
@@ -50,8 +51,16 @@ class ClipRankingEngine:
             if start < 0 or end > video_duration or duration < 10.0:
                 continue
 
-            # Update score
-            c["viral_score"] = cls.calculate_score(c)
+            # Update score with duration alignment bonus
+            base_score = cls.calculate_score(c)
+            if target_duration:
+                diff = abs(duration - target_duration)
+                if diff <= 6:
+                    base_score = min(99, base_score + 5)
+                elif diff <= 15:
+                    base_score = min(99, base_score + 2)
+
+            c["viral_score"] = base_score
             c["duration"] = round(duration, 2)
             valid_candidates.append(c)
 

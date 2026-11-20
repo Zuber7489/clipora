@@ -14,7 +14,7 @@ import { ApiService } from '../../core/services/api.service';
       <!-- Page Header -->
       <div class="create-header">
         <h1 class="page-title">New Clipping Job</h1>
-        <p class="page-subtitle">Ingest a podcast or video episode. Gemini 3.8 extracts the 5 most viral moments into 1080x1920 vertical shorts.</p>
+        <p class="page-subtitle">Ingest a podcast or video episode. Gemini 3.8 extracts viral moments into customized 1080x1920 vertical shorts.</p>
       </div>
 
       <!-- Segmented Ingestion Mode Selector -->
@@ -83,7 +83,7 @@ import { ApiService } from '../../core/services/api.service';
                   <div class="video-details">
                     <span>Channel: <strong>{{ urlInfo()?.uploader }}</strong></span>
                     <span>Duration: <strong class="tabular-nums">{{ formatDuration(urlInfo()?.duration || 0) }}</strong></span>
-                    <span class="pill-output">{{ targetClips }} vertical clips</span>
+                    <span class="pill-output">{{ targetClips }} clips (~{{ targetDuration }}s each)</span>
                   </div>
                 </div>
               </div>
@@ -131,6 +131,39 @@ import { ApiService } from '../../core/services/api.service';
               </div>
             </div>
 
+            <!-- Target Clip Duration (Seconds) Selection -->
+            <div class="form-row" style="margin-top: 20px;">
+              <div class="form-col">
+                <div class="field-label-row">
+                  <label class="field-label">Target Clip Duration (Seconds)</label>
+                  <span class="field-hint">Control length of each extracted clip</span>
+                </div>
+                <div class="clip-duration-group">
+                  @for (opt of durationOptions; track opt.seconds) {
+                    <button 
+                      type="button" 
+                      class="duration-chip" 
+                      [class.active]="targetDuration === opt.seconds" 
+                      (click)="targetDuration = opt.seconds">
+                      <span class="chip-main">{{ opt.label }}</span>
+                      <span class="chip-sub">{{ opt.hint }}</span>
+                    </button>
+                  }
+                  <div class="custom-duration-wrapper">
+                    <span class="custom-prefix">Custom:</span>
+                    <input 
+                      type="number" 
+                      min="15" 
+                      max="180" 
+                      [(ngModel)]="targetDuration" 
+                      class="custom-duration-input"
+                      placeholder="45">
+                    <span class="custom-suffix">sec</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             @if (errorMessage()) {
               <div class="error-banner">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -151,7 +184,7 @@ import { ApiService } from '../../core/services/api.service';
                 @if (isImporting()) {
                   <span class="spinner-clean"></span> Starting Ingestion Pipeline...
                 } @else {
-                  Generate {{ targetClips }} Vertical Clips
+                  Generate {{ targetClips }} Vertical Clips (~{{ targetDuration }}s each)
                 }
               </button>
             </div>
@@ -240,6 +273,39 @@ import { ApiService } from '../../core/services/api.service';
                 </div>
               </div>
 
+              <!-- Target Clip Duration (Seconds) Selection (Upload mode) -->
+              <div class="form-row" style="margin-top: 20px;">
+                <div class="form-col">
+                  <div class="field-label-row">
+                    <label class="field-label">Target Clip Duration (Seconds)</label>
+                    <span class="field-hint">Control length of each extracted clip</span>
+                  </div>
+                  <div class="clip-duration-group">
+                    @for (opt of durationOptions; track opt.seconds) {
+                      <button 
+                        type="button" 
+                        class="duration-chip" 
+                        [class.active]="targetDuration === opt.seconds" 
+                        (click)="targetDuration = opt.seconds">
+                        <span class="chip-main">{{ opt.label }}</span>
+                        <span class="chip-sub">{{ opt.hint }}</span>
+                      </button>
+                    }
+                    <div class="custom-duration-wrapper">
+                      <span class="custom-prefix">Custom:</span>
+                      <input 
+                        type="number" 
+                        min="15" 
+                        max="180" 
+                        [(ngModel)]="targetDuration" 
+                        class="custom-duration-input"
+                        placeholder="45">
+                      <span class="custom-suffix">sec</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               @if (isUploading()) {
                 <div class="upload-progress-box">
                   <div class="progress-bar-bg">
@@ -269,7 +335,7 @@ import { ApiService } from '../../core/services/api.service';
                   @if (isUploading()) {
                     <span class="spinner-clean"></span> Uploading & Processing...
                   } @else {
-                    Upload & Generate {{ targetClips }} Clips
+                    Upload & Generate {{ targetClips }} Clips (~{{ targetDuration }}s each)
                   }
                 </button>
               </div>
@@ -570,6 +636,82 @@ import { ApiService } from '../../core/services/api.service';
       outline: none;
     }
 
+    .clip-duration-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .duration-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 14px;
+      color: var(--text-secondary);
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .duration-chip:hover {
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+    }
+
+    .duration-chip.active {
+      background-color: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #ffffff;
+    }
+
+    .duration-chip.active .chip-sub {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .chip-main {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .chip-sub {
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+      line-height: 1;
+    }
+
+    .custom-duration-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+    }
+
+    .custom-duration-input {
+      width: 48px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      text-align: center;
+      outline: none;
+    }
+
+    .custom-suffix {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
     .action-footer {
       margin-top: 28px;
       padding-top: 20px;
@@ -593,6 +735,15 @@ export class CreateClipsComponent {
 
   // Target viral clips count (default 5, configurable 1 to 50)
   targetClips = 5;
+
+  // Target clip duration in seconds (default 45s, configurable 15 to 180)
+  targetDuration = 45;
+  durationOptions = [
+    { label: '< 30s', hint: 'Shorts / TikTok', seconds: 25 },
+    { label: '30s - 60s', hint: 'Reels (Recommended)', seconds: 45 },
+    { label: '60s - 90s', hint: 'In-Depth', seconds: 75 },
+    { label: '90s - 120s', hint: 'Podcast Highlight', seconds: 105 }
+  ];
 
   // YouTube State
   youtubeUrl = '';
@@ -663,7 +814,8 @@ export class CreateClipsComponent {
     this.errorMessage.set(null);
 
     const clipsCount = Math.max(1, Math.min(50, this.targetClips || 5));
-    this.api.importUrl(this.youtubeUrl.trim(), this.projectTitle, true, clipsCount).subscribe({
+    const clipDuration = Math.max(15, Math.min(180, this.targetDuration || 45));
+    this.api.importUrl(this.youtubeUrl.trim(), this.projectTitle, true, clipsCount, clipDuration).subscribe({
       next: (project) => {
         if (project && project.id) {
           this.router.navigate(['/projects', project.id, 'processing']);
@@ -685,7 +837,8 @@ export class CreateClipsComponent {
     this.errorMessage.set(null);
 
     const clipsCount = Math.max(1, Math.min(50, this.targetClips || 5));
-    this.api.uploadVideoWithProgress(file, this.projectTitle, true, clipsCount).subscribe({
+    const clipDuration = Math.max(15, Math.min(180, this.targetDuration || 45));
+    this.api.uploadVideoWithProgress(file, this.projectTitle, true, clipsCount, clipDuration).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           const progress = Math.round((100 * event.loaded) / event.total);

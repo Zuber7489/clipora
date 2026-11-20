@@ -128,9 +128,9 @@ import { Project } from '../../core/models/project.model';
                   </td>
                   <td class="tabular-nums font-mono-subtle">
                     @if (p.status === 'completed') {
-                      {{ p.clips_count ?? 5 }} clips ready
+                      {{ p.clips_count || 5 }} clips ready
                     } @else {
-                      5 targeted
+                      {{ p.clips_count || 'AI' }} clips
                     }
                   </td>
                   <td class="tabular-nums font-mono-subtle">
@@ -140,7 +140,7 @@ import { Project } from '../../core/models/project.model';
                     <div class="row-actions">
                       @if (p.status === 'completed') {
                         <a [routerLink]="['/projects', p.id]" class="btn btn-secondary btn-sm">
-                          View 5 Clips
+                          View {{ p.clips_count || 5 }} Clips
                         </a>
                       } @else if (p.status === 'processing') {
                         <a [routerLink]="['/projects', p.id, 'processing']" class="btn btn-secondary btn-sm">

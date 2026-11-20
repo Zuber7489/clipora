@@ -29,7 +29,8 @@ KEY VIRAL CRITERIA:
         duration: float,
         transcript_data: Dict[str, Any],
         audio_path: Optional[Path] = None,
-        target_count: int = 5
+        target_count: int = 5,
+        target_duration: int = 45
     ) -> List[Dict[str, Any]]:
         """
         Submits audio or structured transcript to Gemini for structured moment extraction across the entire video.
@@ -40,6 +41,8 @@ KEY VIRAL CRITERIA:
 
         target_min = max(target_count + 3, 8)
         target_max = max(target_count * 2, 15)
+        min_sec = max(15, int(target_duration * 0.75))
+        max_sec = min(180, int(target_duration * 1.35))
 
         if client:
             dur_mins = duration / 60.0
@@ -61,6 +64,10 @@ KEY VIRAL CRITERIA:
                 prompt_content = f"""
 Listen carefully to this entire episode audio (total duration: {duration:.1f} seconds / {dur_mins:.1f} minutes).
 Your mission is to extract {target_min} to {target_max} of the absolute BEST, most viral, funniest, or most shocking standalone clip moments across the ENTIRE duration.
+
+CRITICAL DURATION MANDATE:
+Each extracted clip MUST be targeted at approximately {target_duration} seconds (strictly between {min_sec}s and {max_sec}s).
+Start and end timestamps must align with natural sentence boundaries (do not cut sentences mid-word).
 
 CRITICAL TIMELINE COVERAGE MANDATE (MUST DISTRIBUTE ACROSS ENTIRE EPISODE):
 Do NOT pick moments only from the first few minutes! You MUST search through and distribute candidate moments across all 5 zones of the video:
@@ -168,7 +175,12 @@ Provide exact start_time and end_time (in seconds) and punchy viral titles with 
                     logger.warning(f"Gemini model {model_name} moment extraction failed: {e}")
 
         if len(candidates) < target_count:
-            candidates = cls._generate_content_driven_candidates(duration, transcript_data, target_count=target_count)
+            candidates = cls._generate_content_driven_candidates(
+                duration,
+                transcript_data,
+                target_count=target_count,
+                target_duration=target_duration
+            )
 
         return candidates
 
@@ -177,7 +189,8 @@ Provide exact start_time and end_time (in seconds) and punchy viral titles with 
         cls,
         duration: float,
         transcript_data: Dict[str, Any],
-        target_count: int = 5
+        target_count: int = 5,
+        target_duration: int = 45
     ) -> List[Dict[str, Any]]:
         """
         Extracts genuine segment intervals from the actual spoken words of the episode.
@@ -185,7 +198,7 @@ Provide exact start_time and end_time (in seconds) and punchy viral titles with 
         """
         candidates = []
         words = transcript_data.get("words", [])
-        clip_target_duration = min(45.0, max(20.0, duration / float(target_count + 1)))
+        clip_target_duration = min(float(target_duration), max(15.0, duration / float(target_count + 1)))
         interval_step = max(5.0, (duration - clip_target_duration) / float(max(1, target_count)))
 
         for i in range(target_count):

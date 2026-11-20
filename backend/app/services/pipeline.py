@@ -29,7 +29,8 @@ class PipelineCoordinator:
         project_id: str,
         job_id: str,
         source_url: Optional[str] = None,
-        target_clips: int = 5
+        target_clips: int = 5,
+        target_duration: int = 45
     ) -> None:
         """
         Executes complete video-to-clips pipeline asynchronously in the background.
@@ -48,15 +49,19 @@ class PipelineCoordinator:
                 logger.error(f"Cannot process pipeline: project {project_id} or job {job_id} not found.")
                 return
 
-            if job.payload and isinstance(job.payload, dict) and "target_clips" in job.payload:
-                target_clips = int(job.payload["target_clips"])
+            if job.payload and isinstance(job.payload, dict):
+                if "target_clips" in job.payload:
+                    target_clips = int(job.payload["target_clips"])
+                if "target_duration" in job.payload:
+                    target_duration = int(job.payload["target_duration"])
             target_clips = max(1, min(50, target_clips))
+            target_duration = max(15, min(180, target_duration))
 
             try:
                 # Step 1: Initialize
                 job.status = "running"
                 job.progress_percentage = 5
-                job.current_step = f"Inspecting media and audio channels for {target_clips} clips"
+                job.current_step = f"Inspecting media and audio channels for {target_clips} clips (~{target_duration}s each)"
                 job.started_at = datetime.utcnow()
                 project.status = "processing"
                 await db.commit()
@@ -65,7 +70,7 @@ class PipelineCoordinator:
                 if source_url or (project.file_path and project.file_path.startswith("http")) or not project.file_path:
                     target_url = source_url or project.original_filename
                     job.progress_percentage = 10
-                    job.current_step = f"Ingesting stream metadata & audience heatmap for {target_clips} clips..."
+                    job.current_step = f"Ingesting stream metadata & audience heatmap for {target_clips} clips (~{target_duration}s)..."
                     await db.commit()
 
                     # Instant Stream Heatmap Check: detect viral moments in <1s
@@ -80,10 +85,11 @@ class PipelineCoordinator:
                                 YouTubeHeatmapService.get_top_viral_segments,
                                 target_url,
                                 raw_duration,
-                                target_clips
+                                target_clips,
+                                float(target_duration)
                             )
                             if heatmap_candidates:
-                                job.current_step = f"🚀 Instant Heatmap Engine active: {len(heatmap_candidates)} viral moments located across {raw_duration/3600:.1f}h stream!"
+                                job.current_step = f"🚀 Instant Heatmap Engine active: {len(heatmap_candidates)} viral moments (~{target_duration}s) located across {raw_duration/3600:.1f}h stream!"
                                 await db.commit()
                     except Exception as e:
                         logger.warning(f"Heatmap pre-check skipped: {e}")
@@ -145,12 +151,13 @@ class PipelineCoordinator:
                     project.duration_seconds,
                     transcript,
                     audio_path=audio_path,
-                    target_count=target_clips
+                    target_count=target_clips,
+                    target_duration=target_duration
                 )
 
                 # Step 5: Heuristic 6-Pillar Ranking (70%)
                 job.progress_percentage = 70
-                job.current_step = f"Ranking top {target_clips} viral candidates and optimizing boundary context"
+                job.current_step = f"Ranking top {target_clips} viral candidates (~{target_duration}s) and optimizing context"
                 await db.commit()
 
                 if heatmap_candidates:
@@ -159,7 +166,8 @@ class PipelineCoordinator:
                     ranked_candidates = ClipRankingEngine.rank_and_select_top_clips(
                         raw_candidates,
                         target_count=target_clips,
-                        video_duration=project.duration_seconds
+                        video_duration=project.duration_seconds,
+                        target_duration=target_duration
                     )
 
                 # Save candidates to database

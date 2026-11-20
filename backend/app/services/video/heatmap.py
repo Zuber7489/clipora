@@ -155,8 +155,9 @@ class YouTubeHeatmapService:
                 peak_time = z_start + (zone_duration * 0.5)
                 intensity = 0.85
 
-            # Frame clip: start ~6-8 seconds before the peak moment, length ~40 seconds
-            clip_start = max(0.0, peak_time - 7.0)
+            # Frame clip: lead in before the peak moment, length matches target duration
+            lead_in = min(12.0, max(4.0, clip_target_duration * 0.22))
+            clip_start = max(0.0, peak_time - lead_in)
             clip_end = min(total_duration, clip_start + clip_target_duration)
             duration = clip_end - clip_start
 
