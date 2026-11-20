@@ -18,6 +18,10 @@ export class ApiService {
     return this.http.get<Project[]>(`${this.baseUrl}/projects`);
   }
 
+  getProjects(): Observable<Project[]> {
+    return this.listProjects();
+  }
+
   getProject(id: string): Observable<Project> {
     return this.http.get<Project>(`${this.baseUrl}/projects/${id}`);
   }
@@ -52,6 +56,10 @@ export class ApiService {
 
   getJob(jobId: string): Observable<ProcessingJob> {
     return this.http.get<ProcessingJob>(`${this.baseUrl}/jobs/${jobId}`);
+  }
+
+  getProjectJobs(projectId: string): Observable<ProcessingJob[]> {
+    return this.http.get<ProcessingJob[]>(`${this.baseUrl}/jobs/project/${projectId}`);
   }
 
   getClips(projectId: string): Observable<GeneratedClip[]> {

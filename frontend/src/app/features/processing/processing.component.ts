@@ -1,301 +1,290 @@
 import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { Project, ProcessingJob } from '../../core/models/project.model';
 
 @Component({
   selector: 'app-processing',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   template: `
-    <div class="processing-container">
-      <div class="processing-card card">
-        <div class="spinner-glow-wrapper">
-          <div class="pulse-ring"></div>
-          <div class="spinner-main"></div>
-          <div class="center-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
+    <div class="processing-layout">
+      <!-- Top Navigation & Title -->
+      <div class="processing-header">
+        <a routerLink="/projects" class="back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Projects
+        </a>
+        <h1 class="page-title" style="margin-top: 6px;">Pipeline Execution</h1>
+        <p class="page-subtitle">{{ project()?.title || 'Processing video stream' }}</p>
+      </div>
+
+      <!-- Main Execution Monitor Card -->
+      <div class="card-enterprise monitor-card">
+        <!-- Progress Bar Header -->
+        <div class="progress-header">
+          <div class="status-indicator-col">
+            <span class="status-pill processing">
+              <span class="status-dot"></span>
+              {{ job()?.status === 'running' ? 'Active Execution' : (job()?.status || 'Processing') }}
+            </span>
+            <span class="step-summary">{{ currentStep() }}</span>
           </div>
+          <span class="progress-value tabular-nums">{{ progress() }}%</span>
         </div>
 
-        <h2 class="processing-title">ClipForge Engine Processing</h2>
-        <p class="processing-subtitle">{{ project()?.title || 'Analyzing your podcast media' }}</p>
-
-        <!-- Main Progress Bar -->
-        <div class="progress-section">
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" [style.width.%]="progress()"></div>
-          </div>
-          <div class="progress-meta">
-            <span class="step-text">{{ currentStep() }}</span>
-            <span class="percent-text">{{ progress() }}%</span>
-          </div>
+        <!-- Linear Crisp Progress Bar -->
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" [style.width.%]="progress()"></div>
         </div>
 
-        <!-- Stage Timeline -->
-        <div class="stages-timeline">
-          <div class="timeline-step" [class.done]="progress() >= 15" [class.active]="progress() > 0 && progress() < 35">
-            <div class="step-indicator">
+        <!-- Discrete Linear Steps -->
+        <div class="steps-checklist">
+          <!-- Step 1 -->
+          <div class="step-item" [class.step-done]="progress() >= 15" [class.step-active]="progress() > 0 && progress() < 25">
+            <div class="step-badge">
               @if (progress() >= 15) {
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               } @else {
                 1
               }
             </div>
-            <div class="step-info">
-              <span class="name">Audio & Codec Extraction</span>
-              <span class="sub">FFprobe validation & 16kHz speech WAV</span>
+            <div class="step-content">
+              <span class="step-name">Media Stream Ingestion & Codec Probe</span>
+              <span class="step-detail">FFprobe codec detection & 16kHz audio stream extraction</span>
             </div>
           </div>
 
-          <div class="timeline-step" [class.done]="progress() >= 45" [class.active]="progress() >= 15 && progress() < 55">
-            <div class="step-indicator">
+          <!-- Step 2 -->
+          <div class="step-item" [class.step-done]="progress() >= 45" [class.step-active]="progress() >= 15 && progress() < 50">
+            <div class="step-badge">
               @if (progress() >= 45) {
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               } @else {
                 2
               }
             </div>
-            <div class="step-info">
-              <span class="name">Gemini 3.5 Transcribe</span>
-              <span class="sub">Word-level timestamps & speaker diarization</span>
+            <div class="step-content">
+              <span class="step-name">Gemini 3.8 Speech Intelligence</span>
+              <span class="step-detail">Hinglish/English word-level timestamp alignment</span>
             </div>
           </div>
 
-          <div class="timeline-step" [class.done]="progress() >= 65" [class.active]="progress() >= 45 && progress() < 70">
-            <div class="step-indicator">
+          <!-- Step 3 -->
+          <div class="step-item" [class.step-done]="progress() >= 65" [class.step-active]="progress() >= 50 && progress() < 70">
+            <div class="step-badge">
               @if (progress() >= 65) {
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               } @else {
                 3
               }
             </div>
-            <div class="step-info">
-              <span class="name">Gemini 3.8 Multimodal Analysis</span>
-              <span class="sub">Detecting viral hooks & standalone moments</span>
+            <div class="step-content">
+              <span class="step-name">Multimodal Timeline Partitioning</span>
+              <span class="step-detail">5-zone timeline search across entire duration (no start-clustering)</span>
             </div>
           </div>
 
-          <div class="timeline-step" [class.done]="progress() >= 75" [class.active]="progress() >= 65 && progress() < 75">
-            <div class="step-indicator">
+          <!-- Step 4 -->
+          <div class="step-item" [class.step-done]="progress() >= 75" [class.step-active]="progress() >= 70 && progress() < 80">
+            <div class="step-badge">
               @if (progress() >= 75) {
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               } @else {
                 4
               }
             </div>
-            <div class="step-info">
-              <span class="name">6-Pillar Heuristic Ranking</span>
-              <span class="sub">Scoring hook, emotion, value & context</span>
+            <div class="step-content">
+              <span class="step-name">6-Pillar Heuristic Ranking Engine</span>
+              <span class="step-detail">Selecting top 5 non-overlapping viral moments with temporal spacing</span>
             </div>
           </div>
 
-          <div class="timeline-step" [class.done]="progress() === 100" [class.active]="progress() >= 75 && progress() < 100">
-            <div class="step-indicator">
-              @if (progress() === 100) {
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <!-- Step 5 -->
+          <div class="step-item" [class.step-done]="progress() >= 100" [class.step-active]="progress() >= 80 && progress() < 100">
+            <div class="step-badge">
+              @if (progress() >= 100) {
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               } @else {
                 5
               }
             </div>
-            <div class="step-info">
-              <span class="name">FFmpeg 9:16 Vertical Video Render</span>
-              <span class="sub">Rendering 5 MP4s with animated word highlight subtitles</span>
+            <div class="step-content">
+              <span class="step-name">Parallel 9:16 Video Rendering</span>
+              <span class="step-detail">1080x1920 reframing, blur background & animated subtitles</span>
             </div>
           </div>
         </div>
 
         @if (errorMessage()) {
-          <div class="error-box">
-            <strong>Processing Error:</strong> {{ errorMessage() }}
+          <div class="error-banner" style="margin-top: 24px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ errorMessage() }}</span>
           </div>
         }
       </div>
     </div>
   `,
   styles: [`
-    .processing-container {
-      padding: 60px 40px;
-      max-width: 800px;
-      margin-left: calc(260px + (100vw - 260px - 800px) / 2);
+    .processing-layout {
+      margin-left: 240px;
+      padding: 40px 48px;
+      max-width: 820px;
     }
 
-    .processing-card {
-      padding: 48px;
-      text-align: center;
+    .processing-header {
+      margin-bottom: 24px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.8125rem;
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+    .back-link:hover {
+      color: var(--text-primary);
+    }
+
+    .monitor-card {
+      padding: 32px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .status-indicator-col {
       display: flex;
       flex-direction: column;
-      align-items: center;
+      gap: 6px;
     }
 
-    .spinner-glow-wrapper {
-      position: relative;
-      width: 100px;
-      height: 100px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 28px;
+    .step-summary {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
     }
 
-    .spinner-main {
-      position: absolute;
-      width: 100px;
-      height: 100px;
-      border: 3px solid rgba(255, 255, 255, 0.08);
-      border-top-color: var(--primary);
-      border-right-color: var(--accent-purple);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    .pulse-ring {
-      position: absolute;
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: var(--primary-glow);
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    .center-icon {
-      position: relative;
-      z-index: 2;
-      color: #fff;
-    }
-
-    .processing-title {
-      font-size: 1.7rem;
-      font-weight: 800;
-      color: #fff;
-    }
-
-    .processing-subtitle {
-      font-size: 0.95rem;
-      color: var(--text-muted);
-      margin-top: 6px;
-      margin-bottom: 36px;
-    }
-
-    .progress-section {
-      width: 100%;
-      margin-bottom: 40px;
+    .progress-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
     }
 
     .progress-bar-bg {
-      width: 100%;
-      height: 10px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
+      height: 6px;
+      background-color: var(--bg-muted);
+      border-radius: var(--radius-full);
       overflow: hidden;
-      margin-bottom: 12px;
+      margin-bottom: 32px;
     }
 
     .progress-bar-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--primary), var(--accent-purple), var(--accent-emerald));
-      border-radius: 6px;
-      transition: width 0.4s ease;
+      background-color: var(--accent-blue);
+      border-radius: var(--radius-full);
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .progress-meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.85rem;
-    }
-
-    .step-text { color: var(--text-main); font-weight: 600; }
-    .percent-text { font-family: var(--font-mono); color: var(--accent-cyan); font-weight: 700; }
-
-    .stages-timeline {
-      width: 100%;
+    .steps-checklist {
       display: flex;
       flex-direction: column;
       gap: 16px;
-      text-align: left;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 24px;
     }
 
-    .timeline-step {
+    .step-item {
       display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 12px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--border-color);
-      opacity: 0.5;
-      transition: all 0.2s ease;
-
-      &.active {
-        opacity: 1;
-        background: rgba(99, 102, 241, 0.08);
-        border-color: rgba(99, 102, 241, 0.35);
-      }
-
-      &.done {
-        opacity: 1;
-        border-color: rgba(16, 185, 129, 0.3);
-      }
+      align-items: flex-start;
+      gap: 14px;
+      opacity: 0.45;
+      transition: opacity 0.2s ease;
     }
 
-    .step-indicator {
-      width: 28px;
-      height: 28px;
+    .step-item.step-done, .step-item.step-active {
+      opacity: 1;
+    }
+
+    .step-badge {
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--text-dim);
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      color: var(--text-tertiary);
+      font-size: 0.6875rem;
+      font-weight: 600;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.8rem;
-      font-weight: 700;
       flex-shrink: 0;
-
-      .timeline-step.active & {
-        background: var(--primary);
-        color: #fff;
-      }
-
-      .timeline-step.done & {
-        background: rgba(16, 185, 129, 0.2);
-        color: #34d399;
-      }
+      margin-top: 1px;
     }
 
-    .step-info {
+    .step-done .step-badge {
+      background-color: var(--status-success-bg);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--status-success);
+    }
+
+    .step-active .step-badge {
+      background-color: var(--accent-blue-subtle);
+      border-color: var(--accent-blue);
+      color: #93c5fd;
+    }
+
+    .step-content {
       display: flex;
       flex-direction: column;
-      .name { font-size: 0.9rem; font-weight: 700; color: #fff; }
-      .sub { font-size: 0.75rem; color: var(--text-dim); }
+      gap: 2px;
     }
 
-    .error-box {
-      margin-top: 24px;
-      padding: 16px;
-      background: rgba(244, 63, 94, 0.15);
-      border: 1px solid rgba(244, 63, 94, 0.3);
-      border-radius: var(--radius-sm);
+    .step-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .step-detail {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: var(--status-danger-bg);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
       color: #fca5a5;
-      width: 100%;
-      text-align: left;
-      font-size: 0.9rem;
+      font-size: 0.8125rem;
     }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes pulse { 0%, 100% { transform: scale(0.95); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 0.8; } }
   `]
 })
 export class ProcessingComponent implements OnInit, OnDestroy {
@@ -305,34 +294,30 @@ export class ProcessingComponent implements OnInit, OnDestroy {
 
   projectId = '';
   project = signal<Project | null>(null);
+  job = signal<ProcessingJob | null>(null);
+
   progress = signal<number>(5);
   currentStep = signal<string>('Initializing pipeline...');
   errorMessage = signal<string | null>(null);
-  
+
   private pollInterval: any;
 
   ngOnInit(): void {
     this.projectId = this.route.snapshot.paramMap.get('id') || '';
     if (!this.projectId) {
-      this.router.navigate(['/dashboard']);
+      this.router.navigate(['/projects']);
       return;
     }
 
-    this.startPolling();
+    this.fetchProject();
+    this.pollInterval = setInterval(() => this.pollStatus(), 2000);
   }
 
   ngOnDestroy(): void {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-    }
+    if (this.pollInterval) clearInterval(this.pollInterval);
   }
 
-  private startPolling(): void {
-    this.checkStatus();
-    this.pollInterval = setInterval(() => this.checkStatus(), 2500);
-  }
-
-  private checkStatus(): void {
+  fetchProject(): void {
     this.api.getProject(this.projectId).subscribe({
       next: (proj) => {
         this.project.set(proj);
@@ -340,33 +325,30 @@ export class ProcessingComponent implements OnInit, OnDestroy {
           this.progress.set(100);
           this.currentStep.set('All 5 vertical clips rendered successfully!');
           clearInterval(this.pollInterval);
-          setTimeout(() => {
-            this.router.navigate(['/projects', this.projectId]);
-          }, 800);
-        } else if (proj.status === 'failed') {
-          clearInterval(this.pollInterval);
-          this.errorMessage.set(proj.error_message || 'Video processing failed.');
-        } else {
-          // Dynamic progress based on real backend state & clip count
-          const rendered = proj.clips_count || 0;
-          if (rendered > 0) {
-            const calculatedProgress = Math.min(98, 75 + (rendered * 4.5));
-            this.progress.set(Math.round(calculatedProgress));
-            this.currentStep.set(`Rendering vertical clip ${Math.min(5, rendered + 1)} of 5 with karaoke subtitles...`);
-          } else {
-            const cur = this.progress();
-            if (cur < 75) {
-              this.progress.set(cur + 3);
-            }
-            if (this.progress() < 25) this.currentStep.set('Extracting audio & probing duration...');
-            else if (this.progress() < 50) this.currentStep.set('Gemini speech transcription & word timestamps...');
-            else if (this.progress() < 75) this.currentStep.set('Gemini multimodal moment analysis & hook detection...');
-            else this.currentStep.set('FFmpeg 9:16 vertical reframing & subtitle burning (Clip 1 of 5)...');
+          setTimeout(() => this.router.navigate(['/projects', this.projectId]), 800);
+        }
+      }
+    });
+  }
+
+  pollStatus(): void {
+    this.api.getProjectJobs(this.projectId).subscribe({
+      next: (jobs: ProcessingJob[]) => {
+        if (jobs && jobs.length > 0) {
+          const latest = jobs[0];
+          this.job.set(latest);
+          this.progress.set(latest.progress_percentage || 5);
+          this.currentStep.set(latest.current_step || 'Processing...');
+
+          if (latest.status === 'completed') {
+            this.progress.set(100);
+            clearInterval(this.pollInterval);
+            setTimeout(() => this.router.navigate(['/projects', this.projectId]), 1000);
+          } else if (latest.status === 'failed') {
+            this.errorMessage.set(latest.error_message || 'Processing job encountered an error.');
+            clearInterval(this.pollInterval);
           }
         }
-      },
-      error: (err) => {
-        this.errorMessage.set('Failed to connect to backend.');
       }
     });
   }

@@ -3,23 +3,23 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'dashboard',
+    redirectTo: 'projects',
     pathMatch: 'full'
   },
   {
     path: 'dashboard',
-    loadComponent: () =>
-      import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
-  },
-  {
-    path: 'create',
-    loadComponent: () =>
-      import('./features/create-clips/create-clips.component').then(m => m.CreateClipsComponent)
+    redirectTo: 'projects',
+    pathMatch: 'full'
   },
   {
     path: 'projects',
     loadComponent: () =>
       import('./features/projects-list/projects-list.component').then(m => m.ProjectsListComponent)
+  },
+  {
+    path: 'create',
+    loadComponent: () =>
+      import('./features/create-clips/create-clips.component').then(m => m.CreateClipsComponent)
   },
   {
     path: 'projects/:id/processing',
@@ -38,6 +38,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'dashboard'
+    redirectTo: 'projects'
   }
 ];

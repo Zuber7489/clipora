@@ -10,520 +10,500 @@ import { ApiService } from '../../core/services/api.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="create-container">
-      <header class="create-header">
-        <h1 class="page-title">Create AI Podcast Shorts</h1>
-        <p class="page-subtitle">Upload your full episode or paste a YouTube podcast URL. Gemini extracts 5 viral hooks, and FFmpeg renders 1080x1920 vertical shorts with animated subtitles.</p>
+    <div class="create-layout">
+      <!-- Page Header -->
+      <div class="create-header">
+        <h1 class="page-title">New Clipping Job</h1>
+        <p class="page-subtitle">Ingest a podcast or video episode. Gemini 3.8 extracts the 5 most viral moments into 1080x1920 vertical shorts.</p>
+      </div>
 
-        <!-- Mode Tabs -->
-        <div class="mode-tabs">
+      <!-- Segmented Ingestion Mode Selector -->
+      <div class="mode-selector-row">
+        <div class="segmented-control">
           <button 
             type="button" 
-            class="tab-btn" 
-            [class.active]="activeTab() === 'upload'"
+            class="segmented-tab" 
+            [class.active]="activeTab() === 'youtube'" 
+            (click)="activeTab.set('youtube')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
+              <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+            </svg>
+            YouTube Ingestion
+          </button>
+
+          <button 
+            type="button" 
+            class="segmented-tab" 
+            [class.active]="activeTab() === 'upload'" 
             (click)="activeTab.set('upload')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
-            Upload File (MP4, MOV)
-          </button>
-
-          <button 
-            type="button" 
-            class="tab-btn" 
-            [class.active]="activeTab() === 'youtube'"
-            (click)="activeTab.set('youtube')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
-              <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
-            </svg>
-            Paste YouTube URL
+            Local File Upload
           </button>
         </div>
-      </header>
+      </div>
 
-      <div class="upload-grid">
-        <!-- Left: Upload or YouTube Card -->
-        <div class="main-card card">
-          @if (activeTab() === 'upload') {
-            <!-- Tab 1: Local File Upload -->
-            <div class="upload-section" [class.dragging]="isDragging()" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-              @if (!selectedFile()) {
-                <div class="drop-zone" (click)="fileInput.click()">
-                  <input #fileInput type="file" (change)="onFileSelected($event)" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" style="display: none">
-                  
-                  <div class="upload-icon-wrapper">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                      <polyline points="17 8 12 3 7 8"></polyline>
-                      <line x1="12" y1="3" x2="12" y2="15"></line>
-                    </svg>
-                  </div>
-
-                  <h3>Drag & drop your podcast video</h3>
-                  <p class="upload-hint">Supports MP4, MOV, WEBM or MKV (up to 2GB, 30-60 min recommended)</p>
-
-                  <button type="button" class="btn btn-secondary browse-btn">
-                    Browse Video Files
-                  </button>
-                </div>
-              } @else {
-                <div class="selected-file-view">
-                  <div class="file-header">
-                    <div class="file-info">
-                      <span class="file-name">{{ selectedFile()?.name }}</span>
-                      <span class="file-size">{{ formatBytes(selectedFile()?.size || 0) }}</span>
-                    </div>
-                    <button type="button" (click)="removeSelectedFile()" class="btn-icon-danger" title="Remove file">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  </div>
-
-                  @if (videoPreviewUrl()) {
-                    <div class="preview-player-container">
-                      <video [src]="videoPreviewUrl()" controls class="preview-video"></video>
-                    </div>
-                  }
-
-                  <div class="form-group">
-                    <label class="form-label">Episode Title</label>
-                    <input type="text" [(ngModel)]="projectTitle" placeholder="e.g. Scaling to 100k Users Masterclass" class="form-input">
-                  </div>
-
-                  @if (isUploading()) {
-                    <div class="upload-progress-wrapper">
-                      <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" [style.width.%]="uploadProgress()"></div>
-                      </div>
-                      <span class="progress-text">Uploading & validating media: {{ uploadProgress() }}%</span>
-                    </div>
-                  }
-
-                  @if (errorMessage()) {
-                    <div class="error-alert">{{ errorMessage() }}</div>
-                  }
-
-                  <div class="action-row">
-                    <button (click)="uploadAndGenerate()" [disabled]="isUploading()" class="btn btn-primary btn-lg">
-                      @if (isUploading()) {
-                        <span class="spinner-small"></span> Uploading...
-                      } @else {
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        Generate 5 Viral Clips
-                      }
-                    </button>
-                  </div>
-                </div>
-              }
+      <!-- Main Ingestion Box -->
+      <div class="card-enterprise main-canvas">
+        @if (activeTab() === 'youtube') {
+          <!-- YouTube Mode -->
+          <div class="canvas-section">
+            <label class="field-label">YouTube URL</label>
+            <div class="url-input-group">
+              <input 
+                type="text" 
+                [(ngModel)]="youtubeUrl" 
+                (keydown.enter)="fetchInfo()"
+                placeholder="https://www.youtube.com/watch?v=..." 
+                class="input-enterprise">
+              <button 
+                type="button" 
+                (click)="fetchInfo()" 
+                [disabled]="isFetchingInfo() || !youtubeUrl.trim()" 
+                class="btn btn-secondary">
+                @if (isFetchingInfo()) {
+                  <span class="spinner-clean"></span> Inspecting...
+                } @else {
+                  Inspect
+                }
+              </button>
             </div>
-          } @else {
-            <!-- Tab 2: YouTube URL Import -->
-            <div class="youtube-section">
-              <div class="youtube-intro">
-                <div class="yt-badge-icon">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="#f43f5e">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+
+            @if (urlInfo()) {
+              <div class="video-preview-strip">
+                @if (urlInfo()?.thumbnail) {
+                  <img [src]="urlInfo()?.thumbnail" alt="Thumbnail" class="video-thumb">
+                }
+                <div class="video-meta">
+                  <span class="video-title">{{ urlInfo()?.title }}</span>
+                  <div class="video-details">
+                    <span>Channel: <strong>{{ urlInfo()?.uploader }}</strong></span>
+                    <span>Duration: <strong class="tabular-nums">{{ formatDuration(urlInfo()?.duration || 0) }}</strong></span>
+                    <span class="pill-output">5 vertical clips</span>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <div class="form-row" style="margin-top: 20px;">
+              <div class="form-col">
+                <label class="field-label">Custom Project Title (Optional)</label>
+                <input 
+                  type="text" 
+                  [(ngModel)]="projectTitle" 
+                  placeholder="Leave empty to use video title" 
+                  class="input-enterprise">
+              </div>
+            </div>
+
+            @if (errorMessage()) {
+              <div class="error-banner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>{{ errorMessage() }}</span>
+              </div>
+            }
+
+            <div class="action-footer">
+              <button 
+                type="button" 
+                (click)="importAndGenerate()" 
+                [disabled]="isImporting() || !youtubeUrl.trim()" 
+                class="btn btn-primary btn-lg">
+                @if (isImporting()) {
+                  <span class="spinner-clean"></span> Starting Ingestion Pipeline...
+                } @else {
+                  Generate 5 Vertical Clips
+                }
+              </button>
+            </div>
+          </div>
+        } @else {
+          <!-- Local File Upload Mode -->
+          <div class="canvas-section">
+            @if (!selectedFile()) {
+              <div 
+                class="dropzone" 
+                [class.dragging]="isDragging()" 
+                (dragover)="onDragOver($event)" 
+                (dragleave)="onDragLeave($event)" 
+                (drop)="onDrop($event)"
+                (click)="fileInput.click()">
+                <input #fileInput type="file" (change)="onFileSelected($event)" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" style="display: none">
+                
+                <div class="drop-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
                   </svg>
                 </div>
-                <div>
-                  <h3 class="yt-heading">Paste YouTube Podcast Link</h3>
-                  <p class="yt-sub">Enter any full podcast or interview link. We'll fetch the stream and run our Gemini clipping engine.</p>
+                <h3 class="drop-heading">Click or drag video file to this area</h3>
+                <p class="drop-specs">MP4, MOV, WEBM or MKV. Up to 2GB in size.</p>
+                <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 12px; pointer-events: none;">
+                  Select File from Computer
+                </button>
+              </div>
+            } @else {
+              <div class="selected-file-strip">
+                <div class="file-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
                 </div>
+                <div class="file-info-col">
+                  <span class="file-name">{{ selectedFile()?.name }}</span>
+                  <span class="file-size tabular-nums">{{ formatBytes(selectedFile()?.size || 0) }}</span>
+                </div>
+                <button type="button" (click)="removeSelectedFile()" class="btn btn-ghost btn-sm" title="Remove file">
+                  Remove
+                </button>
               </div>
 
-              <div class="form-group">
-                <label class="form-label">YouTube URL</label>
-                <div class="url-input-wrapper">
+              <div class="form-row" style="margin-top: 20px;">
+                <div class="form-col">
+                  <label class="field-label">Project Title</label>
                   <input 
-                    type="url" 
-                    [(ngModel)]="youtubeUrl" 
-                    placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..." 
-                    class="form-input url-input"
-                    (keyup.enter)="fetchUrlInfo()">
-                  <button type="button" (click)="fetchUrlInfo()" [disabled]="isFetchingInfo() || !youtubeUrl" class="btn btn-secondary">
-                    @if (isFetchingInfo()) {
-                      <span class="spinner-small"></span>
-                    } @else {
-                      Fetch Info
-                    }
-                  </button>
+                    type="text" 
+                    [(ngModel)]="projectTitle" 
+                    placeholder="Enter project name" 
+                    class="input-enterprise">
                 </div>
               </div>
 
-              <!-- Fetched Preview Card -->
-              @if (urlInfo()) {
-                <div class="url-preview-card">
-                  @if (urlInfo()?.thumbnail) {
-                    <img [src]="urlInfo()?.thumbnail" alt="Video thumbnail" class="yt-thumb">
-                  }
-                  <div class="yt-meta">
-                    <span class="yt-title">{{ urlInfo()?.title }}</span>
-                    <div class="yt-submeta">
-                      <span>Channel: <strong>{{ urlInfo()?.uploader }}</strong></span>
-                      <span>Duration: <strong>{{ formatDuration(urlInfo()?.duration || 0) }}</strong></span>
-                    </div>
+              @if (isUploading()) {
+                <div class="upload-progress-box">
+                  <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" [style.width.%]="uploadProgress()"></div>
                   </div>
+                  <span class="upload-status-text tabular-nums">Uploading media... {{ uploadProgress() }}%</span>
                 </div>
               }
-
-              <div class="form-group" style="margin-top: 16px;">
-                <label class="form-label">Custom Title (Optional)</label>
-                <input type="text" [(ngModel)]="projectTitle" placeholder="Leave empty to use YouTube title" class="form-input">
-              </div>
 
               @if (errorMessage()) {
-                <div class="error-alert">{{ errorMessage() }}</div>
+                <div class="error-banner">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                  <span>{{ errorMessage() }}</span>
+                </div>
               }
 
-              <div class="action-row" style="margin-top: 20px;">
-                <button (click)="importAndGenerate()" [disabled]="isImporting() || !youtubeUrl" class="btn btn-primary btn-lg">
-                  @if (isImporting()) {
-                    <span class="spinner-small"></span> Ingesting YouTube Stream...
+              <div class="action-footer">
+                <button 
+                  type="button" 
+                  (click)="uploadAndGenerate()" 
+                  [disabled]="isUploading()" 
+                  class="btn btn-primary btn-lg">
+                  @if (isUploading()) {
+                    <span class="spinner-clean"></span> Uploading & Processing...
                   } @else {
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                    Import & Generate 5 Clips
+                    Upload & Generate 5 Clips
                   }
                 </button>
               </div>
-            </div>
-          }
-        </div>
-
-        <!-- Right: How ClipForge Works -->
-        <div class="pipeline-guide card">
-          <h3 class="guide-title">How ClipForge AI Works</h3>
-          <div class="guide-steps">
-            <div class="guide-step">
-              <div class="step-num">1</div>
-              <div class="step-content">
-                <h4>Audio & Frame Extraction</h4>
-                <p>FFprobe inspects duration and codecs, while FFmpeg extracts clean speech audio.</p>
-              </div>
-            </div>
-
-            <div class="guide-step">
-              <div class="step-num">2</div>
-              <div class="step-content">
-                <h4>Gemini 3.5 Speech Intelligence</h4>
-                <p>Generates word-level timestamps and speaker diarization for pixel-perfect subtitle sync.</p>
-              </div>
-            </div>
-
-            <div class="guide-step">
-              <div class="step-num">3</div>
-              <div class="step-content">
-                <h4>Gemini 3.8 Multimodal Analysis</h4>
-                <p>Identifies high-retention hooks, debates, emotional shifts, and standalone insights.</p>
-              </div>
-            </div>
-
-            <div class="guide-step">
-              <div class="step-num">4</div>
-              <div class="step-content">
-                <h4>6-Pillar Heuristic Ranking</h4>
-                <p>Scores candidates (Hook 25%, Emotion 20%, Value 20%) and selects top 5 non-overlapping clips.</p>
-              </div>
-            </div>
-
-            <div class="guide-step">
-              <div class="step-num">5</div>
-              <div class="step-content">
-                <h4>FFmpeg 9:16 Vertical Video Render</h4>
-                <p>Renders 1080x1920 MP4s with smart background blur and burned animated word highlights.</p>
-              </div>
-            </div>
+            }
           </div>
-        </div>
+        }
       </div>
     </div>
   `,
   styles: [`
-    .create-container {
-      padding: 36px 40px;
-      max-width: 1400px;
-      margin-left: 260px;
+    .create-layout {
+      margin-left: 240px;
+      padding: 40px 48px;
+      max-width: 900px;
     }
 
-    .create-header { margin-bottom: 28px; }
-    .page-title { font-size: 2rem; font-weight: 800; color: #fff; }
-    .page-subtitle { font-size: 0.95rem; color: var(--text-muted); margin-top: 4px; max-width: 720px; }
+    .create-header {
+      margin-bottom: 24px;
+    }
 
-    .mode-tabs {
+    .mode-selector-row {
+      margin-bottom: 20px;
+    }
+
+    .main-canvas {
+      padding: 32px;
+    }
+
+    .canvas-section {
       display: flex;
-      gap: 12px;
-      margin-top: 20px;
+      flex-direction: column;
     }
 
-    .tab-btn {
-      display: inline-flex;
-      align-items: center;
+    .field-label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .url-input-group {
+      display: flex;
       gap: 8px;
-      padding: 10px 18px;
-      border-radius: var(--radius-sm);
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-color);
+    }
+
+    .video-preview-strip {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 14px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      margin-top: 14px;
+    }
+
+    .video-thumb {
+      width: 104px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .video-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .video-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .video-details {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .pill-output {
+      background-color: rgba(37, 99, 235, 0.15);
+      color: #93c5fd;
+      padding: 2px 6px;
+      border-radius: var(--radius-xs);
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 16px;
+    }
+    .form-col {
+      flex: 1;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: 56px 24px;
+      text-align: center;
       cursor: pointer;
-      transition: all 0.2s ease;
-
-      &:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
-      &.active {
-        color: #fff;
-        background: rgba(99, 102, 241, 0.15);
-        border-color: var(--primary);
-        box-shadow: 0 0 15px var(--primary-glow);
-      }
-    }
-
-    .upload-grid {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: 28px;
-    }
-
-    .main-card {
-      padding: 36px;
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-    }
-
-    .upload-section {
-      border: 2px dashed rgba(255, 255, 255, 0.12);
-      border-radius: var(--radius-sm);
-      padding: 24px;
-      transition: all 0.2s ease;
-      &.dragging { border-color: var(--primary); background: rgba(99, 102, 241, 0.08); }
-    }
-
-    .drop-zone {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 320px;
-      cursor: pointer;
-      text-align: center;
+      transition: all 0.15s ease;
+      background-color: rgba(255, 255, 255, 0.01);
+    }
+    .dropzone:hover, .dropzone.dragging {
+      border-color: var(--accent-blue);
+      background-color: var(--accent-blue-subtle);
     }
 
-    .upload-icon-wrapper {
-      width: 72px;
-      height: 72px;
+    .drop-icon {
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
-      background: rgba(99, 102, 241, 0.12);
-      color: var(--primary);
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      color: var(--text-secondary);
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 20px;
+      margin-bottom: 14px;
     }
 
-    h3 { font-size: 1.3rem; font-weight: 700; color: #fff; }
-    .upload-hint { font-size: 0.85rem; color: var(--text-dim); margin-top: 6px; margin-bottom: 24px; }
-    .browse-btn { pointer-events: none; }
-
-    .selected-file-view { display: flex; flex-direction: column; gap: 20px; }
-
-    .file-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border-color);
+    .drop-heading {
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-primary);
     }
 
-    .file-info { display: flex; flex-direction: column; }
-    .file-name { font-size: 1.05rem; font-weight: 700; color: #fff; }
-    .file-size { font-size: 0.8rem; color: var(--text-dim); }
-
-    .btn-icon-danger {
-      color: var(--text-dim);
-      padding: 6px;
-      border-radius: 6px;
-      &:hover { color: var(--accent-rose); background: rgba(244, 63, 94, 0.1); }
+    .drop-specs {
+      font-size: 0.8125rem;
+      color: var(--text-tertiary);
+      margin-top: 4px;
     }
 
-    .preview-player-container {
-      width: 100%;
-      max-height: 260px;
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      background: #000;
+    .selected-file-strip {
       display: flex;
       align-items: center;
-      justify-content: center;
-    }
-
-    .preview-video { width: 100%; max-height: 260px; }
-
-    .form-group { display: flex; flex-direction: column; gap: 8px; }
-    .form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    .form-input {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
+      gap: 12px;
       padding: 12px 16px;
-      color: #fff;
-      font-family: inherit;
-      font-size: 0.95rem;
-
-      &:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
     }
 
-    .url-input-wrapper { display: flex; gap: 10px; }
-    .url-input { flex: 1; }
-
-    /* YouTube Styles */
-    .youtube-section { display: flex; flex-direction: column; gap: 20px; }
-    .youtube-intro { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-    .yt-badge-icon {
-      width: 50px;
-      height: 50px;
-      border-radius: 12px;
-      background: rgba(244, 63, 94, 0.12);
+    .file-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-default);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
+      color: var(--text-secondary);
     }
-    .yt-heading { font-size: 1.2rem; font-weight: 700; color: #fff; }
-    .yt-sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
 
-    .url-preview-card {
+    .file-info-col {
       display: flex;
-      gap: 16px;
-      padding: 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--border-color);
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .file-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-size {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .upload-progress-box {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .progress-bar-bg {
+      height: 6px;
+      background-color: var(--bg-card);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background-color: var(--accent-blue);
+      border-radius: var(--radius-full);
+      transition: width 0.2s ease;
+    }
+
+    .upload-status-text {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .error-banner {
+      display: flex;
       align-items: center;
+      gap: 8px;
+      background-color: var(--status-danger-bg);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      color: #fca5a5;
+      font-size: 0.8125rem;
+      margin-top: 16px;
     }
 
-    .yt-thumb {
-      width: 130px;
-      height: 74px;
-      object-fit: cover;
-      border-radius: 6px;
-      flex-shrink: 0;
+    .action-footer {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: flex-end;
     }
-
-    .yt-meta { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-    .yt-title { font-size: 0.95rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .yt-submeta { display: flex; gap: 16px; font-size: 0.8rem; color: var(--text-dim); }
-
-    .upload-progress-wrapper { display: flex; flex-direction: column; gap: 8px; }
-    .progress-bar-bg { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
-    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent-purple)); border-radius: 4px; transition: width 0.3s ease; }
-    .progress-text { font-size: 0.8rem; color: var(--text-muted); }
-
-    .error-alert { padding: 12px 16px; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: var(--radius-sm); color: #fca5a5; font-size: 0.85rem; }
-
-    .action-row { margin-top: 10px; }
-    .btn-lg { width: 100%; padding: 14px; font-size: 1.05rem; }
-
-    .spinner-small {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      display: inline-block;
-    }
-
-    .pipeline-guide { padding: 32px; background: var(--bg-card); height: fit-content; }
-    .guide-title { font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
-    .guide-steps { display: flex; flex-direction: column; gap: 22px; }
-    .guide-step { display: flex; gap: 16px; }
-    .step-num { width: 28px; height: 28px; border-radius: 50%; background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; flex-shrink: 0; }
-    .step-content { h4 { font-size: 0.95rem; font-weight: 700; color: #fff; } p { font-size: 0.85rem; color: var(--text-dim); margin-top: 2px; } }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
   `]
 })
 export class CreateClipsComponent {
   private api = inject(ApiService);
   private router = inject(Router);
 
-  activeTab = signal<'upload' | 'youtube'>('upload');
+  activeTab = signal<'youtube' | 'upload'>('youtube');
 
   // File Upload State
   selectedFile = signal<File | null>(null);
-  videoPreviewUrl = signal<string | null>(null);
   isDragging = signal<boolean>(false);
   isUploading = signal<boolean>(false);
   uploadProgress = signal<number>(0);
 
   // YouTube State
   youtubeUrl = '';
+  projectTitle = '';
   urlInfo = signal<{ title: string; duration: number; uploader: string; thumbnail?: string; webpage_url: string } | null>(null);
   isFetchingInfo = signal<boolean>(false);
   isImporting = signal<boolean>(false);
-
-  projectTitle = '';
   errorMessage = signal<string | null>(null);
 
-  onDragOver(e: DragEvent): void {
-    e.preventDefault();
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.selectedFile.set(input.files[0]);
+      if (!this.projectTitle) {
+        this.projectTitle = input.files[0].name.replace(/\.[^/.]+$/, "");
+      }
+    }
+  }
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
     this.isDragging.set(true);
   }
 
-  onDragLeave(e: DragEvent): void {
-    e.preventDefault();
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
     this.isDragging.set(false);
   }
 
-  onDrop(e: DragEvent): void {
-    e.preventDefault();
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
     this.isDragging.set(false);
-    if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-      this.handleFile(e.dataTransfer.files[0]);
+    if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+      this.selectedFile.set(event.dataTransfer.files[0]);
+      if (!this.projectTitle) {
+        this.projectTitle = event.dataTransfer.files[0].name.replace(/\.[^/.]+$/, "");
+      }
     }
-  }
-
-  onFileSelected(e: Event): void {
-    const target = e.target as HTMLInputElement;
-    if (target.files && target.files.length > 0) {
-      this.handleFile(target.files[0]);
-    }
-  }
-
-  handleFile(file: File): void {
-    this.errorMessage.set(null);
-    const validExtensions = ['.mp4', '.mov', '.webm', '.mkv', '.avi'];
-    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    
-    if (!validExtensions.includes(ext)) {
-      this.errorMessage.set(`File type '${ext}' not supported. Please select MP4, MOV, WEBM or MKV.`);
-      return;
-    }
-
-    this.selectedFile.set(file);
-    this.projectTitle = file.name.replace(/\.[^/.]+$/, '');
-    this.videoPreviewUrl.set(URL.createObjectURL(file));
   }
 
   removeSelectedFile(): void {
-    if (this.videoPreviewUrl()) {
-      URL.revokeObjectURL(this.videoPreviewUrl()!);
-    }
     this.selectedFile.set(null);
-    this.videoPreviewUrl.set(null);
-    this.projectTitle = '';
-    this.errorMessage.set(null);
   }
 
-  fetchUrlInfo(): void {
+  fetchInfo(): void {
     if (!this.youtubeUrl.trim()) return;
     this.isFetchingInfo.set(true);
     this.errorMessage.set(null);
@@ -538,7 +518,7 @@ export class CreateClipsComponent {
       },
       error: (err) => {
         this.isFetchingInfo.set(false);
-        this.errorMessage.set(err.error?.detail || 'Could not fetch video info from URL. Check if URL is public.');
+        this.errorMessage.set(err.error?.detail || 'Could not fetch video metadata from URL. Please verify the URL.');
       }
     });
   }
@@ -583,7 +563,7 @@ export class CreateClipsComponent {
       },
       error: (err) => {
         this.isUploading.set(false);
-        this.errorMessage.set(err.error?.detail || 'Failed to upload video. Please ensure file is valid.');
+        this.errorMessage.set(err.error?.detail || 'Failed to upload video. Please ensure the file is valid.');
       }
     });
   }

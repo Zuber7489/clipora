@@ -19,15 +19,16 @@ import { SidebarComponent } from './layout/sidebar/sidebar.component';
     .app-layout {
       display: flex;
       min-height: 100vh;
-      background-color: var(--bg-darker);
+      background-color: var(--bg-app);
     }
 
     .main-content {
       flex: 1;
       min-height: 100vh;
+      background-color: var(--bg-app);
     }
   `]
 })
 export class AppComponent {
-  title = 'ClipForge AI';
+  title = 'Clipora';
 }
