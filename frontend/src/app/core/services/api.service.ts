@@ -26,12 +26,22 @@ export class ApiService {
     return this.http.get<Project>(`${this.baseUrl}/projects/${id}`);
   }
 
-  uploadVideoWithProgress(file: File, title: string, autoGenerate: boolean = true, numClips: number = 5, targetDuration: number = 45): Observable<HttpEvent<Project>> {
+  uploadVideoWithProgress(
+    file: File, 
+    title: string, 
+    autoGenerate: boolean = true, 
+    numClips: number = 5, 
+    targetDuration: number = 45,
+    cropMode: string = 'streamer_split',
+    subtitleStyle: string = 'bold_viral'
+  ): Observable<HttpEvent<Project>> {
     const formData = new FormData();
     formData.append('file', file);
     if (title) formData.append('title', title);
     formData.append('num_clips', String(numClips));
     formData.append('target_duration', String(targetDuration));
+    formData.append('crop_mode', cropMode);
+    formData.append('subtitle_style', subtitleStyle);
     formData.append('auto_generate', String(autoGenerate));
 
     const req = new HttpRequest('POST', `${this.baseUrl}/projects/upload`, formData, {
@@ -44,20 +54,38 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/projects/inspect-url`, { url });
   }
 
-  importUrl(url: string, title?: string, autoGenerate: boolean = true, numClips: number = 5, targetDuration: number = 45): Observable<Project> {
+  importUrl(
+    url: string, 
+    title?: string, 
+    autoGenerate: boolean = true, 
+    numClips: number = 5, 
+    targetDuration: number = 45,
+    cropMode: string = 'streamer_split',
+    subtitleStyle: string = 'bold_viral'
+  ): Observable<Project> {
     return this.http.post<Project>(`${this.baseUrl}/projects/import-url`, {
       url,
       title: title || undefined,
       num_clips: numClips,
       target_duration: targetDuration,
+      crop_mode: cropMode,
+      subtitle_style: subtitleStyle,
       auto_generate: autoGenerate
     });
   }
 
-  generateClips(projectId: string, numClips: number = 5, targetDuration: number = 45): Observable<ProcessingJob> {
+  generateClips(
+    projectId: string, 
+    numClips: number = 5, 
+    targetDuration: number = 45,
+    cropMode: string = 'streamer_split',
+    subtitleStyle: string = 'bold_viral'
+  ): Observable<ProcessingJob> {
     return this.http.post<ProcessingJob>(`${this.baseUrl}/projects/${projectId}/generate`, {
       num_clips: numClips,
-      target_duration: targetDuration
+      target_duration: targetDuration,
+      crop_mode: cropMode,
+      subtitle_style: subtitleStyle
     });
   }
 

@@ -78,19 +78,21 @@ async def import_from_url(
     if req.auto_generate:
         target_clips = max(1, min(50, req.num_clips))
         target_duration = max(15, min(180, req.target_duration))
+        crop_mode = req.crop_mode or "streamer_split"
+        subtitle_style = req.subtitle_style or "bold_viral"
         job_id = str(uuid.uuid4())
         job = ProcessingJob(
             id=job_id,
             project_id=project.id,
             job_type="full_pipeline",
             progress_percentage=0,
-            current_step=f"Initializing stream ingestion pipeline for {target_clips} clips (~{target_duration}s each)",
+            current_step=f"Initializing stream ingestion pipeline for {target_clips} clips (~{target_duration}s each, {crop_mode})",
             status="queued",
-            payload={"target_clips": target_clips, "target_duration": target_duration}
+            payload={"target_clips": target_clips, "target_duration": target_duration, "crop_mode": crop_mode, "subtitle_style": subtitle_style}
         )
         db.add(job)
         await db.commit()
-        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, req.url, target_clips, target_duration)
+        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, req.url, target_clips, target_duration, crop_mode, subtitle_style)
 
     return project
 
@@ -101,6 +103,8 @@ async def upload_video(
     title: Optional[str] = Form(None),
     num_clips: int = Form(5),
     target_duration: int = Form(45),
+    crop_mode: str = Form("streamer_split"),
+    subtitle_style: str = Form("bold_viral"),
     auto_generate: bool = Form(True),
     db: AsyncSession = Depends(get_db)
 ):
@@ -167,6 +171,8 @@ async def upload_video(
     if auto_generate:
         target_clips = max(1, min(50, num_clips))
         target_dur = max(15, min(180, target_duration))
+        crop_m = crop_mode or "streamer_split"
+        sub_s = subtitle_style or "bold_viral"
         # Spawn job and trigger pipeline
         job_id = str(uuid.uuid4())
         job = ProcessingJob(
@@ -174,15 +180,15 @@ async def upload_video(
             project_id=project.id,
             job_type="full_pipeline",
             progress_percentage=0,
-            current_step=f"Queued for processing {target_clips} clips (~{target_dur}s each)",
+            current_step=f"Queued for processing {target_clips} clips (~{target_dur}s each, {crop_m})",
             status="queued",
-            payload={"target_clips": target_clips, "target_duration": target_dur}
+            payload={"target_clips": target_clips, "target_duration": target_dur, "crop_mode": crop_m, "subtitle_style": sub_s}
         )
         db.add(job)
         await db.commit()
         
         # Launch background pipeline
-        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, None, target_clips, target_dur)
+        background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, None, target_clips, target_dur, crop_m, sub_s)
 
     return project
 
@@ -201,21 +207,23 @@ async def generate_clips_for_project(
 
     target_clips = max(1, min(50, req.num_clips if req else 5))
     target_dur = max(15, min(180, req.target_duration if req else 45))
+    crop_m = req.crop_mode if req and req.crop_mode else "streamer_split"
+    sub_s = req.subtitle_style if req and req.subtitle_style else "bold_viral"
     job_id = str(uuid.uuid4())
     job = ProcessingJob(
         id=job_id,
         project_id=project.id,
         job_type="full_pipeline",
         progress_percentage=0,
-        current_step=f"Queued for processing {target_clips} clips (~{target_dur}s each)",
+        current_step=f"Queued for processing {target_clips} clips (~{target_dur}s each, {crop_m})",
         status="queued",
-        payload={"target_clips": target_clips, "target_duration": target_dur}
+        payload={"target_clips": target_clips, "target_duration": target_dur, "crop_mode": crop_m, "subtitle_style": sub_s}
     )
     db.add(job)
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, None, target_clips, target_dur)
+    background_tasks.add_task(PipelineCoordinator.process_project_pipeline, project.id, job_id, None, target_clips, target_dur, crop_m, sub_s)
     return job
 
 @router.get("", response_model=List[ProjectResponse])

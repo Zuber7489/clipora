@@ -13,11 +13,15 @@ class ImportUrlRequest(BaseModel):
     title: Optional[str] = Field(None, description="Optional custom title")
     num_clips: int = Field(5, description="Number of viral clips to extract (1 to 50)", ge=1, le=50)
     target_duration: int = Field(45, description="Target clip duration in seconds (15 to 180)", ge=15, le=180)
+    crop_mode: str = Field("streamer_split", description="Layout template: 'streamer_split', 'twitter_post', 'smart_blur', 'center_crop'")
+    subtitle_style: str = Field("bold_viral", description="Karaoke subtitle style: 'bold_viral', 'clean_minimal', 'podcast_pro'")
     auto_generate: bool = Field(True, description="Whether to trigger clips pipeline immediately")
 
 class GenerateClipsRequest(BaseModel):
     num_clips: int = Field(5, description="Number of viral clips to generate (1 to 50)", ge=1, le=50)
     target_duration: int = Field(45, description="Target clip duration in seconds (15 to 180)", ge=15, le=180)
+    crop_mode: str = Field("streamer_split", description="Layout template: 'streamer_split', 'twitter_post', 'smart_blur', 'center_crop'")
+    subtitle_style: str = Field("bold_viral", description="Karaoke subtitle style: 'bold_viral', 'clean_minimal', 'podcast_pro'")
 
 class UrlInfoResponse(BaseModel):
     title: str

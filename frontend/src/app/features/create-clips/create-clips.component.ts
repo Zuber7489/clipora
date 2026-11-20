@@ -164,6 +164,99 @@ import { ApiService } from '../../core/services/api.service';
               </div>
             </div>
 
+            <!-- Video Layout Template Section -->
+            <div class="template-section-wrapper" style="margin-top: 24px;">
+              <div class="field-label-row">
+                <label class="field-label">1. Video Layout Template</label>
+                <span class="field-hint">Select social layout for rendered 9:16 clips</span>
+              </div>
+              <div class="template-grid">
+                <label class="template-card" [class.selected]="selectedCropMode === 'streamer_split'" (click)="selectedCropMode = 'streamer_split'">
+                  <input type="radio" name="cropModeYt" value="streamer_split" [(ngModel)]="selectedCropMode">
+                  <div class="template-mini split-mini">
+                    <div class="mini-top">Streamer</div>
+                    <div class="mini-divider"></div>
+                    <div class="mini-bottom">Gameplay</div>
+                  </div>
+                  <div class="t-details">
+                    <span class="t-name">Streamer Split</span>
+                    <span class="t-desc">Top webcam, bottom gameplay stream (TikTok & Reels)</span>
+                  </div>
+                </label>
+
+                <label class="template-card" [class.selected]="selectedCropMode === 'twitter_post'" (click)="selectedCropMode = 'twitter_post'">
+                  <input type="radio" name="cropModeYt" value="twitter_post" [(ngModel)]="selectedCropMode">
+                  <div class="template-mini twitter-mini">
+                    <div class="mini-tw-bar">
+                      <span class="tw-dot"></span>
+                      <span class="tw-badge">𝕏</span>
+                    </div>
+                    <div class="mini-tw-vid">Framed Video</div>
+                  </div>
+                  <div class="t-details">
+                    <span class="t-name">Twitter / X Post</span>
+                    <span class="t-desc">Dark card with avatar, verified badge & hook text</span>
+                  </div>
+                </label>
+
+                <label class="template-card" [class.selected]="selectedCropMode === 'smart_blur'" (click)="selectedCropMode = 'smart_blur'">
+                  <input type="radio" name="cropModeYt" value="smart_blur" [(ngModel)]="selectedCropMode">
+                  <div class="template-mini blur-mini">
+                    <div class="mini-blur-bg"></div>
+                    <div class="mini-sharp-fg">16:9</div>
+                  </div>
+                  <div class="t-details">
+                    <span class="t-name">Smart Blur</span>
+                    <span class="t-desc">9:16 blurred backdrop with sharp centered video</span>
+                  </div>
+                </label>
+
+                <label class="template-card" [class.selected]="selectedCropMode === 'center_crop'" (click)="selectedCropMode = 'center_crop'">
+                  <input type="radio" name="cropModeYt" value="center_crop" [(ngModel)]="selectedCropMode">
+                  <div class="template-mini focus-mini">
+                    <div class="mini-focus">9:16 Full</div>
+                  </div>
+                  <div class="t-details">
+                    <span class="t-name">Center Focus</span>
+                    <span class="t-desc">Minimalist 9:16 portrait crop</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Burned Karaoke Subtitles Section -->
+            <div class="template-section-wrapper" style="margin-top: 24px;">
+              <div class="field-label-row">
+                <label class="field-label">2. Burned Karaoke Subtitles</label>
+                <span class="field-hint">Choose on-screen dynamic caption styling</span>
+              </div>
+              <div class="style-cards">
+                <label class="style-card" [class.selected]="selectedStyle === 'bold_viral'" (click)="selectedStyle = 'bold_viral'">
+                  <input type="radio" name="subStyleYt" value="bold_viral" [(ngModel)]="selectedStyle">
+                  <div class="style-details">
+                    <span class="name">Bold Viral (Recommended)</span>
+                    <span class="desc">Yellow animated word pop, heavy outline, maximum viral retention</span>
+                  </div>
+                </label>
+
+                <label class="style-card" [class.selected]="selectedStyle === 'clean_minimal'" (click)="selectedStyle = 'clean_minimal'">
+                  <input type="radio" name="subStyleYt" value="clean_minimal" [(ngModel)]="selectedStyle">
+                  <div class="style-details">
+                    <span class="name">Clean Minimal</span>
+                    <span class="desc">Crisp white typography with subtle translucent backing</span>
+                  </div>
+                </label>
+
+                <label class="style-card" [class.selected]="selectedStyle === 'podcast_pro'" (click)="selectedStyle = 'podcast_pro'">
+                  <input type="radio" name="subStyleYt" value="podcast_pro" [(ngModel)]="selectedStyle">
+                  <div class="style-details">
+                    <span class="name">Podcast Professional</span>
+                    <span class="desc">Mint green highlights, lower-third formatting for interviews</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             @if (errorMessage()) {
               <div class="error-banner">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -184,7 +277,7 @@ import { ApiService } from '../../core/services/api.service';
                 @if (isImporting()) {
                   <span class="spinner-clean"></span> Starting Ingestion Pipeline...
                 } @else {
-                  Generate {{ targetClips }} Vertical Clips (~{{ targetDuration }}s each)
+                  Generate {{ targetClips }} Clips (~{{ targetDuration }}s, {{ getCropModeLabel(selectedCropMode) }})
                 }
               </button>
             </div>
@@ -274,6 +367,7 @@ import { ApiService } from '../../core/services/api.service';
               </div>
 
               <!-- Target Clip Duration (Seconds) Selection (Upload mode) -->
+              <!-- Target Clip Duration (Seconds) Selection (Upload mode) -->
               <div class="form-row" style="margin-top: 20px;">
                 <div class="form-col">
                   <div class="field-label-row">
@@ -306,6 +400,99 @@ import { ApiService } from '../../core/services/api.service';
                 </div>
               </div>
 
+              <!-- Video Layout Template Section (Upload) -->
+              <div class="template-section-wrapper" style="margin-top: 24px;">
+                <div class="field-label-row">
+                  <label class="field-label">1. Video Layout Template</label>
+                  <span class="field-hint">Select social layout for rendered 9:16 clips</span>
+                </div>
+                <div class="template-grid">
+                  <label class="template-card" [class.selected]="selectedCropMode === 'streamer_split'" (click)="selectedCropMode = 'streamer_split'">
+                    <input type="radio" name="cropModeUpload" value="streamer_split" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini split-mini">
+                      <div class="mini-top">Streamer</div>
+                      <div class="mini-divider"></div>
+                      <div class="mini-bottom">Gameplay</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Streamer Split</span>
+                      <span class="t-desc">Top webcam, bottom gameplay stream (TikTok & Reels)</span>
+                    </div>
+                  </label>
+
+                  <label class="template-card" [class.selected]="selectedCropMode === 'twitter_post'" (click)="selectedCropMode = 'twitter_post'">
+                    <input type="radio" name="cropModeUpload" value="twitter_post" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini twitter-mini">
+                      <div class="mini-tw-bar">
+                        <span class="tw-dot"></span>
+                        <span class="tw-badge">𝕏</span>
+                      </div>
+                      <div class="mini-tw-vid">Framed Video</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Twitter / X Post</span>
+                      <span class="t-desc">Dark card with avatar, verified badge & hook text</span>
+                    </div>
+                  </label>
+
+                  <label class="template-card" [class.selected]="selectedCropMode === 'smart_blur'" (click)="selectedCropMode = 'smart_blur'">
+                    <input type="radio" name="cropModeUpload" value="smart_blur" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini blur-mini">
+                      <div class="mini-blur-bg"></div>
+                      <div class="mini-sharp-fg">16:9</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Smart Blur</span>
+                      <span class="t-desc">9:16 blurred backdrop with sharp centered video</span>
+                    </div>
+                  </label>
+
+                  <label class="template-card" [class.selected]="selectedCropMode === 'center_crop'" (click)="selectedCropMode = 'center_crop'">
+                    <input type="radio" name="cropModeUpload" value="center_crop" [(ngModel)]="selectedCropMode">
+                    <div class="template-mini focus-mini">
+                      <div class="mini-focus">9:16 Full</div>
+                    </div>
+                    <div class="t-details">
+                      <span class="t-name">Center Focus</span>
+                      <span class="t-desc">Minimalist 9:16 portrait crop</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Burned Karaoke Subtitles Section (Upload) -->
+              <div class="template-section-wrapper" style="margin-top: 24px;">
+                <div class="field-label-row">
+                  <label class="field-label">2. Burned Karaoke Subtitles</label>
+                  <span class="field-hint">Choose on-screen dynamic caption styling</span>
+                </div>
+                <div class="style-cards">
+                  <label class="style-card" [class.selected]="selectedStyle === 'bold_viral'" (click)="selectedStyle = 'bold_viral'">
+                    <input type="radio" name="subStyleUpload" value="bold_viral" [(ngModel)]="selectedStyle">
+                    <div class="style-details">
+                      <span class="name">Bold Viral (Recommended)</span>
+                      <span class="desc">Yellow animated word pop, heavy outline, maximum viral retention</span>
+                    </div>
+                  </label>
+
+                  <label class="style-card" [class.selected]="selectedStyle === 'clean_minimal'" (click)="selectedStyle = 'clean_minimal'">
+                    <input type="radio" name="subStyleUpload" value="clean_minimal" [(ngModel)]="selectedStyle">
+                    <div class="style-details">
+                      <span class="name">Clean Minimal</span>
+                      <span class="desc">Crisp white typography with subtle translucent backing</span>
+                    </div>
+                  </label>
+
+                  <label class="style-card" [class.selected]="selectedStyle === 'podcast_pro'" (click)="selectedStyle = 'podcast_pro'">
+                    <input type="radio" name="subStyleUpload" value="podcast_pro" [(ngModel)]="selectedStyle">
+                    <div class="style-details">
+                      <span class="name">Podcast Professional</span>
+                      <span class="desc">Mint green highlights, lower-third formatting for interviews</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               @if (isUploading()) {
                 <div class="upload-progress-box">
                   <div class="progress-bar-bg">
@@ -335,7 +522,7 @@ import { ApiService } from '../../core/services/api.service';
                   @if (isUploading()) {
                     <span class="spinner-clean"></span> Uploading & Processing...
                   } @else {
-                    Upload & Generate {{ targetClips }} Clips (~{{ targetDuration }}s each)
+                    Upload & Generate {{ targetClips }} Clips (~{{ targetDuration }}s, {{ getCropModeLabel(selectedCropMode) }})
                   }
                 </button>
               </div>
@@ -719,6 +906,210 @@ import { ApiService } from '../../core/services/api.service';
       display: flex;
       justify-content: flex-end;
     }
+
+    .template-section-wrapper {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .template-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .template-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background-color: var(--bg-card);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .template-card input[type="radio"] { display: none; }
+    .template-card:hover { border-color: var(--border-hover); }
+    .template-card.selected {
+      border-color: var(--accent-blue);
+      background-color: rgba(37, 99, 235, 0.08);
+    }
+
+    .template-mini {
+      width: 100%;
+      height: 64px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .split-mini {
+      display: flex;
+      flex-direction: column;
+      background: #000;
+    }
+    .mini-top {
+      flex: 1;
+      background: #1e293b;
+      font-size: 8px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
+    .mini-divider {
+      height: 2px;
+      background: var(--accent-blue);
+    }
+    .mini-bottom {
+      flex: 1;
+      background: #09090b;
+      font-size: 8px;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
+
+    .twitter-mini {
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      gap: 4px;
+      background: #000;
+    }
+    .mini-tw-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tw-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #2563eb;
+    }
+    .tw-badge {
+      font-size: 9px;
+      color: #a1a1aa;
+      font-weight: bold;
+    }
+    .mini-tw-vid {
+      flex: 1;
+      background: #18181b;
+      border-radius: 4px;
+      font-size: 8px;
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .blur-mini {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    .mini-blur-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #1e1b4b, #09090b);
+      opacity: 0.7;
+    }
+    .mini-sharp-fg {
+      position: relative;
+      z-index: 1;
+      width: 80%;
+      height: 38px;
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      border-radius: 4px;
+      font-size: 8px;
+      color: #e4e4e7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .focus-mini {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    .mini-focus {
+      width: 44px;
+      height: 100%;
+      background: #18181b;
+      border-left: 1px solid var(--border-hover);
+      border-right: 1px solid var(--border-hover);
+      font-size: 8px;
+      color: #a1a1aa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .t-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .t-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .t-desc {
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+      line-height: 1.25;
+    }
+
+    .style-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .style-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      background-color: var(--bg-card);
+      transition: all 0.15s ease;
+    }
+    .style-card input[type="radio"] { display: none; }
+    .style-card:hover { border-color: var(--border-hover); }
+    .style-card.selected {
+      border-color: var(--accent-blue);
+      background-color: rgba(37, 99, 235, 0.08);
+    }
+
+    .style-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .style-details .name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .style-details .desc {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      line-height: 1.3;
+    }
   `]
 })
 export class CreateClipsComponent {
@@ -744,6 +1135,20 @@ export class CreateClipsComponent {
     { label: '60s - 90s', hint: 'In-Depth', seconds: 75 },
     { label: '90s - 120s', hint: 'Podcast Highlight', seconds: 105 }
   ];
+
+  // Selected Social Layout & Karaoke Subtitles upfront
+  selectedCropMode = 'streamer_split';
+  selectedStyle = 'bold_viral';
+
+  getCropModeLabel(mode: string): string {
+    const labels: Record<string, string> = {
+      streamer_split: 'Streamer Split',
+      twitter_post: 'Twitter / X Post',
+      smart_blur: 'Smart Blur',
+      center_crop: 'Center Focus'
+    };
+    return labels[mode] || 'Streamer Split';
+  }
 
   // YouTube State
   youtubeUrl = '';
@@ -815,7 +1220,15 @@ export class CreateClipsComponent {
 
     const clipsCount = Math.max(1, Math.min(50, this.targetClips || 5));
     const clipDuration = Math.max(15, Math.min(180, this.targetDuration || 45));
-    this.api.importUrl(this.youtubeUrl.trim(), this.projectTitle, true, clipsCount, clipDuration).subscribe({
+    this.api.importUrl(
+      this.youtubeUrl.trim(), 
+      this.projectTitle, 
+      true, 
+      clipsCount, 
+      clipDuration,
+      this.selectedCropMode,
+      this.selectedStyle
+    ).subscribe({
       next: (project) => {
         if (project && project.id) {
           this.router.navigate(['/projects', project.id, 'processing']);
@@ -838,7 +1251,15 @@ export class CreateClipsComponent {
 
     const clipsCount = Math.max(1, Math.min(50, this.targetClips || 5));
     const clipDuration = Math.max(15, Math.min(180, this.targetDuration || 45));
-    this.api.uploadVideoWithProgress(file, this.projectTitle, true, clipsCount, clipDuration).subscribe({
+    this.api.uploadVideoWithProgress(
+      file, 
+      this.projectTitle, 
+      true, 
+      clipsCount, 
+      clipDuration,
+      this.selectedCropMode,
+      this.selectedStyle
+    ).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           const progress = Math.round((100 * event.loaded) / event.total);

@@ -30,7 +30,9 @@ class PipelineCoordinator:
         job_id: str,
         source_url: Optional[str] = None,
         target_clips: int = 5,
-        target_duration: int = 45
+        target_duration: int = 45,
+        crop_mode: str = "streamer_split",
+        subtitle_style: str = "bold_viral"
     ) -> None:
         """
         Executes complete video-to-clips pipeline asynchronously in the background.
@@ -54,6 +56,10 @@ class PipelineCoordinator:
                     target_clips = int(job.payload["target_clips"])
                 if "target_duration" in job.payload:
                     target_duration = int(job.payload["target_duration"])
+                if "crop_mode" in job.payload:
+                    crop_mode = str(job.payload["crop_mode"])
+                if "subtitle_style" in job.payload:
+                    subtitle_style = str(job.payload["subtitle_style"])
             target_clips = max(1, min(50, target_clips))
             target_duration = max(15, min(180, target_duration))
 
@@ -260,7 +266,7 @@ class PipelineCoordinator:
                                 SubtitleGenerator.generate_ass,
                                 words=clip_words,
                                 output_path=sub_path,
-                                style_name="bold_viral",
+                                style_name=subtitle_style,
                                 clip_start=c_model.start_time,
                                 clip_end=c_model.end_time,
                                 headline_hook=c_model.title
@@ -275,7 +281,7 @@ class PipelineCoordinator:
                                 end_time=render_end,
                                 output_video_path=out_mp4,
                                 subtitle_ass_path=sub_path,
-                                crop_mode="streamer_split",
+                                crop_mode=crop_mode,
                                 clip_title=c_model.title,
                                 author_name=project.title or "Stream Highlights",
                                 author_handle="clipora_live"
@@ -349,8 +355,8 @@ class PipelineCoordinator:
                         video_path=res["video_path"],
                         thumbnail_path=res["thumb_path"],
                         subtitle_path=res["sub_path"],
-                        subtitle_style="bold_viral",
-                        aspect_ratio="streamer_split",
+                        subtitle_style=subtitle_style,
+                        aspect_ratio=crop_mode,
                         resolution="1080x1920",
                         file_size_bytes=render_meta.get("size_bytes", 0),
                         render_status="completed"
