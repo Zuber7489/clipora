@@ -53,7 +53,7 @@ class VideoProcessor:
         output_audio_path.parent.mkdir(parents=True, exist_ok=True)
         
         is_mp3 = output_audio_path.suffix.lower() == ".mp3"
-        acodec_args = ["-c:a", "libmp3lame", "-b:a", "64k"] if is_mp3 else ["-acodec", "pcm_s16le"]
+        acodec_args = ["-c:a", "libmp3lame", "-b:a", "32k"] if is_mp3 else ["-acodec", "pcm_s16le"]
 
         cmd = [
             ffmpeg,

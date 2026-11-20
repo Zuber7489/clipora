@@ -46,7 +46,7 @@ class FaceReframer:
 
     @classmethod
     def get_shared_instance(cls) -> "FaceReframer":
-        if cls._shared_instance is None or cls._shared_instance._mp_face_detector is None:
+        if cls._shared_instance is None:
             cls._shared_instance = cls()
         return cls._shared_instance
 

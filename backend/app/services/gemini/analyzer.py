@@ -129,7 +129,7 @@ Provide exact start_time and end_time (in seconds) and punchy viral titles with 
 """
                 contents_payload = [prompt_content]
 
-            for model_name in [settings.GEMINI_ANALYSIS_MODEL, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"]:
+            for model_name in ["gemini-3.1-flash-lite", settings.GEMINI_ANALYSIS_MODEL, "gemini-2.5-flash", "gemini-3.8-flash"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
